@@ -44,10 +44,29 @@ class AudioService:
     def extract_audio(cls, input_path, output_path=None):
         """
         Extracts 16kHz mono PCM 16-bit WAV audio from input media file using FFmpeg.
-        If output_path is not provided, derives it from input_path with .wav extension.
+        If input_path is already a valid WAV file, returns it directly without redundant conversion.
+        Guarantees input_path != output_path to prevent FFmpeg self-overwrite collisions.
         """
+        base, ext = os.path.splitext(input_path)
+
+        # If already a valid PCM WAV file, return directly
+        if ext.lower() == ".wav":
+            try:
+                with wave.open(input_path, "rb") as audio:
+                    if audio.getframerate() > 0 and audio.getnframes() > 0:
+                        return input_path
+            except Exception:
+                pass
+
         if not output_path:
-            output_path = os.path.splitext(input_path)[0] + ".wav"
+            if ext.lower() == ".wav":
+                output_path = f"{base}_extracted.wav"
+            else:
+                output_path = f"{base}.wav"
+
+        # Prevent input and output being the same file
+        if os.path.abspath(input_path) == os.path.abspath(output_path):
+            output_path = f"{base}_extracted.wav"
 
         ffmpeg_cmd = cls.get_ffmpeg_path()
 

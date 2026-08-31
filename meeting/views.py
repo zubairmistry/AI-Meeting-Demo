@@ -187,12 +187,12 @@ def home(request):
                 )      
 
             except subprocess.CalledProcessError:
-                status = "❌ Failed to convert video into audio. Please ensure a valid audio/video file is uploaded."
+                status = "❌ Failed to extract audio from the uploaded media file. Please ensure a valid audio/video file is uploaded."
                 return render(request, "meeting/index.html", 
                     {"status": status,
                      "transcript": transcript,
                      "report": report,
-                     }
+                      }
                 )
 
             except TimeoutError:
