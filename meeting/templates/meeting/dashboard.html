@@ -1,0 +1,207 @@
+{% extends "meeting/base.html" %}
+
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet"
+      href="{% static 'meeting/css/dashboard.css' %}?v=3.0">
+{% endblock %}
+
+{% block title %}
+Dashboard | AI Meeting Assistant
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero Banner -->
+<div class="dashboard-hero">
+    <div>
+        <div class="dashboard-hero-title">
+            <span>📊 Meeting Intelligence Dashboard</span>
+            <span class="premium-badge badge-ai">⚡ AI Powered</span>
+        </div>
+        <p class="dashboard-hero-subtitle">
+            Overview of meeting transcriptions, AI summaries, and execution metrics.
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'meeting' %}" class="premium-button premium-button-primary">
+            <i class="bi bi-plus-circle-fill"></i> Analyze New Meeting
+        </a>
+    </div>
+</div>
+
+<!-- 4 KPI Cards -->
+<div class="row g-3 mb-4">
+
+    <!-- 1. Total Meetings -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="dashboard-card dashboard-total">
+            <div class="card-header-row">
+                <span class="card-icon">📁</span>
+                <span class="card-title">TOTAL MEETINGS</span>
+            </div>
+            <div class="card-value-row">
+                <h2>{{ total_meetings }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Completed -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="dashboard-card dashboard-success">
+            <div class="card-header-row">
+                <span class="card-icon">✅</span>
+                <span class="card-title">COMPLETED</span>
+            </div>
+            <div class="card-value-row">
+                <h2>{{ completed_meetings }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Failed -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="dashboard-card dashboard-danger">
+            <div class="card-header-row">
+                <span class="card-icon">❌</span>
+                <span class="card-title">FAILED</span>
+            </div>
+            <div class="card-value-row">
+                <h2>{{ failed_meetings }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Total Duration -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="dashboard-card dashboard-info">
+            <div class="card-header-row">
+                <span class="card-icon">⏱️</span>
+                <span class="card-title">TOTAL DURATION</span>
+            </div>
+            <div class="card-value-row">
+                <h2>{{ total_duration }}</h2>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Meeting History Section -->
+<div class="history-card">
+
+    <div class="history-header">
+        <h3>
+            <i class="bi bi-journal-text text-primary-light"></i>
+            <span>Meeting History</span>
+        </h3>
+        <span class="badge bg-white text-dark px-3 py-2 fw-semibold" style="border-radius: var(--radius-full); font-size: 0.82rem;">
+            {{ total_meetings }} Record{{ total_meetings|pluralize }}
+        </span>
+    </div>
+
+    <div class="p-0">
+
+        {% if meetings %}
+
+        <div class="table-responsive">
+
+            <table class="table history-table align-middle">
+
+                <thead>
+                    <tr>
+                        <th>Meeting</th>
+                        <th>Provider</th>
+                        <th>Model</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for meeting in meetings %}
+
+                    <tr>
+                        <td>
+                            <a href="{% url 'meeting_detail' meeting.id %}" class="meeting-link">
+                                <i class="bi bi-file-earmark-play text-primary"></i>
+                                <span>{{ meeting.meeting_name }}</span>
+                            </a> 
+                        </td>
+
+                        <td>
+                            <span class="fw-semibold text-secondary">
+                                {{ meeting.provider|title }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <code class="text-dark bg-light px-2 py-1 rounded" style="font-size: 0.85rem;">
+                                {{ meeting.model_name }}
+                            </code>
+                        </td>
+
+                        <td>
+                            <span class="fw-semibold text-dark">
+                                {{ meeting.formatted_duration }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {% if meeting.status == "completed" %}
+                                <span class="premium-badge badge-success-soft">
+                                    <i class="bi bi-check-circle-fill"></i> Completed
+                                </span>
+                            {% elif meeting.status == "processing" %}
+                                <span class="premium-badge badge-warning-soft">
+                                    <i class="bi bi-hourglass-split"></i> Processing
+                                </span>
+                            {% else %}
+                                <span class="premium-badge badge-danger-soft">
+                                    <i class="bi bi-x-circle-fill"></i> Failed
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td class="text-muted" style="font-size: 0.88rem;">
+                            {{ meeting.created_at|date:"d M Y H:i" }}
+                        </td>
+
+                        <td class="text-end">
+                            <a href="{% url 'meeting_detail' meeting.id %}"
+                               class="premium-button premium-button-primary premium-button-sm">
+                                <span>View</span> <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="text-center py-5">
+            <div class="mb-3" style="font-size: 48px;">📂</div>
+            <h5 class="fw-bold text-dark">No meetings analyzed yet</h5>
+            <p class="text-muted mb-4">Upload your first meeting recording to see transcription and AI reports here.</p>
+            <a href="{% url 'meeting' %}" class="premium-button premium-button-primary">
+                <i class="bi bi-upload"></i> Analyze Your First Meeting
+            </a>
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

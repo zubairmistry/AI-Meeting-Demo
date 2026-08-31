@@ -1,0 +1,112 @@
+{% extends "meeting/base.html" %}
+
+{% block title %}
+AI Provider Settings | AI Meeting Assistant
+{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+
+    <div class="col-lg-8 col-xl-7">
+
+        <div class="premium-card mb-4">
+
+            <div class="premium-card-header bg-primary text-white">
+                <h3 class="mb-0 text-white">
+                    <i class="bi bi-sliders text-white"></i>
+                    <span>AI Provider & Model Configuration</span>
+                </h3>
+                <span class="badge bg-white text-primary px-3 py-1 fw-bold rounded-pill">
+                    <i class="bi bi-shield-check"></i> Encrypted
+                </span>
+            </div>
+
+            <div class="premium-card-body p-4 p-md-5">
+
+                <!-- Saved Status Indicator -->
+                {% if api_key_configured %}
+                    <div class="alert alert-success d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #edfdf5; border-left: 4px solid #10b981 !important;">
+                        <span class="fs-4 text-success"><i class="bi bi-check-circle-fill"></i></span>
+                        <div>
+                            <strong class="text-success d-block mb-1">API Key: Saved</strong>
+                            <div class="small text-muted">A saved API key is configured. You can go to the Meeting tab to analyze a meeting, or enter a new key below to update it.</div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #fffbeb; border-left: 4px solid #f59e0b !important;">
+                        <span class="fs-4 text-warning"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                        <div>
+                            <strong class="text-warning d-block mb-1">No API key is configured yet.</strong>
+                            <div class="small text-muted">Please enter your API key below to enable AI transcription and reports.</div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <form method="post">
+
+                    {% csrf_token %}
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-cpu text-primary me-1"></i> AI Provider
+                        </label>
+                        {{ form.provider }}
+                        {% if form.provider.errors %}
+                            <div class="text-danger small mt-1">{{ form.provider.errors }}</div>
+                        {% endif %}
+                        <div class="form-text text-muted">Select your preferred AI platform for transcription and reasoning.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-key text-primary me-1"></i> API Key
+                        </label>
+                        {{ form.api_key }}
+                        {% if form.api_key.errors %}
+                            <div class="text-danger small mt-1">{{ form.api_key.errors }}</div>
+                        {% endif %}
+                        {% if api_key_configured %}
+                            <div class="form-text text-muted">
+                                <i class="bi bi-shield-lock-fill text-success"></i> Leave blank to keep your currently saved encrypted API key.
+                            </div>
+                        {% else %}
+                            <div class="form-text text-muted">Enter your provider API key. It will be encrypted at rest.</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-box text-primary me-1"></i> Model Name
+                        </label>
+                        {{ form.model_name }}
+                        {% if form.model_name.errors %}
+                            <div class="text-danger small mt-1">{{ form.model_name.errors }}</div>
+                        {% endif %}
+                        <div class="form-text text-muted">e.g., gemini-2.5-flash, gemini-1.5-pro</div>
+                    </div>
+
+                    <div class="d-grid mt-5">
+                        <button
+                            type="submit"
+                            class="premium-button premium-button-primary premium-button-lg"
+                        >
+                            <i class="bi bi-floppy-fill"></i> Save Settings
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
+
+        <div class="text-center text-muted small">
+            <i class="bi bi-lock-fill text-secondary"></i> All API keys are securely encrypted using Fernet symmetric encryption before database persistence.
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

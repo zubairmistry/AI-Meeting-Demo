@@ -1,0 +1,136 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>
+        {% block title %}
+            AI Meeting Assistant
+        {% endblock %}
+    </title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="{% static 'meeting/css/auth.css' %}">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+</head>
+
+<body>
+
+<div class="auth-wrapper">
+
+    <div class="container">
+
+        <div class="row align-items-center min-vh-100">
+
+            <!-- =======================================
+                 LEFT SHOWCASE
+            ======================================== -->
+
+            <div class="col-lg-6 d-none d-lg-flex">
+
+                <div class="auth-left">
+
+                    <div class="auth-showcase">
+
+                        <!-- AI Illustration -->
+
+                        <img
+                            src="{% static 'meeting/images/ai-illustration.svg' %}"
+                            class="img-fluid auth-image"
+                            alt="AI Illustration">
+
+                        <!-- Showcase Content -->
+
+                        <div class="showcase-content">
+
+                            <h2>Enterprise AI Meeting Assistant</h2>
+
+                            <p>
+                                Intelligent meeting transcription,
+                                AI-powered analysis, secure cloud processing
+                                and enterprise-grade reporting —
+                                all in one modern platform.
+                            </p>
+
+                            <div class="feature-list">
+
+                                <div class="feature-item">
+                                    <span class="feature-icon">✓</span>
+                                    Secure Authentication
+                                </div>
+
+                                <div class="feature-item">
+                                    <span class="feature-icon">✓</span>
+                                    AI Powered Analysis
+                                </div>
+
+                                <div class="feature-item">
+                                    <span class="feature-icon">✓</span>
+                                    Multi AI Provider Support
+                                </div>
+
+                                <div class="feature-item">
+                                    <span class="feature-icon">✓</span>
+                                    Enterprise Grade Security
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- Floating Glass Badges -->
+
+                        <div class="floating-badges">
+
+                            <div class="glass-badge">
+                                🔒 Secure
+                            </div>
+
+                            <div class="glass-badge">
+                                🤖 Gemini • Claude • OpenAI
+                            </div>
+
+                            <div class="glass-badge">
+                                ⚡ Enterprise Ready
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- =======================================
+                 RIGHT AUTH CARD
+            ======================================== -->
+
+            <div class="col-lg-6">
+
+                <div class="auth-card">
+
+                    {% block content %}
+                    {% endblock %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="{% static 'meeting/js/auth.js' %}"></script>
+
+</body>
+</html>
