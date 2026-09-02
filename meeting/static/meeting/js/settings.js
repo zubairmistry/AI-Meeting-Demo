@@ -5,6 +5,7 @@
  */
 
 document.addEventListener("DOMContentLoaded", function () {
+    const settingsForm = document.getElementById("ai-settings-form");
     const providerSelect = document.getElementById("id_provider");
     const apiKeyInput = document.getElementById("id_api_key");
     const modelNameInput = document.getElementById("id_model_name");
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const customModelInput = document.getElementById("custom_model_input");
     const btnDiscover = document.getElementById("btn-discover-models");
     const btnValidate = document.getElementById("btn-validate-model");
+    const btnSave = settingsForm ? settingsForm.querySelector("button[type=submit]") : null;
     const statusContainer = document.getElementById("model_status_container");
     const statusBadge = document.getElementById("model_status_badge");
     const statusMessage = document.getElementById("model_status_message");
@@ -23,6 +25,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let initialModelName = window.AI_SETTINGS_CONFIG?.currentModel || "";
 
     let discoveredModels = [];
+    let isDiscovering = false;
+    let isValidating = false;
 
     // Helper: get CSRF token
     function getCsrfToken() {
@@ -45,7 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i> Model Available & Verified</span>';
                 break;
             case "ACCESS_DENIED":
-                badgeHtml = '<span class="badge bg-danger text-white px-3 py-2 rounded-pill"><i class="bi bi-shield-x me-1"></i> Access Denied / Invalid Credentials</span>';
+                badgeHtml = '<span class="badge bg-danger text-white px-3 py-2 rounded-pill"><i class="bi bi-shield-x me-1"></i> Access Denied / Invalid API Key</span>';
                 break;
             case "UNAVAILABLE":
                 badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-exclamation-triangle-fill me-1"></i> Model Unavailable</span>';
@@ -57,10 +61,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-hourglass-split me-1"></i> Rate Limited</span>';
                 break;
             case "TEMPORARILY_UNAVAILABLE":
-                badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-pause-circle me-1"></i> Temporarily Busy</span>';
+                badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-pause-circle me-1"></i> Temporarily Unavailable / Busy</span>';
                 break;
             case "VALIDATING":
                 badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Validating Model Access...</span>';
+                break;
+            case "DISCOVERING":
+                badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Discovering Compatible Models...</span>';
                 break;
             case "COMPATIBLE_UNTESTED":
             default:
@@ -83,6 +90,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (meta.speed_score) {
                     metaHtml += `<span class="badge bg-light text-secondary border me-1">Speed: ${meta.speed_score}/100</span>`;
                 }
+                if (meta.context_window) {
+                    const ctxK = Math.round(meta.context_window / 1000);
+                    metaHtml += `<span class="badge bg-light text-secondary border me-1">Context: ${ctxK}k tokens</span>`;
+                }
                 if (meta.is_recommended) {
                     metaHtml += `<span class="badge bg-success-subtle text-success border border-success me-1">⭐ Recommended</span>`;
                 }
@@ -97,8 +108,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Discover Models AJAX
     async function discoverModels(autoSelect = true) {
-        if (!providerSelect || !modelSelect) return;
+        if (!providerSelect || !modelSelect || isDiscovering) return;
 
+        isDiscovering = true;
         const provider = providerSelect.value;
         const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
 
@@ -107,8 +119,12 @@ document.addEventListener("DOMContentLoaded", function () {
             btnDiscover.disabled = true;
             btnDiscover.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Discovering...';
         }
+        if (btnValidate) {
+            btnValidate.disabled = true;
+        }
         modelSelect.disabled = true;
         modelSelect.innerHTML = '<option value="">Discovering compatible models...</option>';
+        setValidationStatus("DISCOVERING", `Querying compatible models for ${provider.toUpperCase()}...`);
 
         try {
             const response = await fetch(discoverUrl, {
@@ -134,13 +150,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 setValidationStatus("UNAVAILABLE", errMsg);
             }
         } catch (err) {
-            console.error("Discovery error:", err);
             modelSelect.innerHTML = '<option value="">Failed to connect for model discovery.</option>';
-            setValidationStatus("UNKNOWN", "Network or server error during model discovery.");
+            setValidationStatus("UNKNOWN", "Network or server communication error during model discovery.");
         } finally {
+            isDiscovering = false;
             if (btnDiscover) {
                 btnDiscover.disabled = false;
                 btnDiscover.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Discover Models';
+            }
+            if (btnValidate) {
+                btnValidate.disabled = false;
             }
             modelSelect.disabled = false;
         }
@@ -200,8 +219,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (selectedValue === "__custom__") {
             if (customModelContainer) customModelContainer.classList.remove("d-none");
-            if (modelNameInput && customModelInput) {
-                modelNameInput.value = customModelInput.value.trim();
+            if (customModelInput) {
+                customModelInput.focus();
+                if (modelNameInput) {
+                    modelNameInput.value = customModelInput.value.trim();
+                }
             }
             setValidationStatus("COMPATIBLE_UNTESTED", "Custom model selected. Click Validate Model to test access.");
         } else {
@@ -222,19 +244,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Validate Model AJAX
     async function validateSelectedModel() {
+        if (isValidating) return;
+
         const provider = providerSelect ? providerSelect.value : "gemini";
         const modelId = modelNameInput ? modelNameInput.value.trim() : (modelSelect ? modelSelect.value : "");
         const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
 
         if (!modelId || modelId === "__custom__") {
-            setValidationStatus("UNAVAILABLE", "Please select or enter a valid model ID.");
+            setValidationStatus("UNAVAILABLE", "Please select or enter a valid model ID before validating.");
             return;
         }
 
+        isValidating = true;
         // UI loading
         if (btnValidate) {
             btnValidate.disabled = true;
             btnValidate.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Validating...';
+        }
+        if (btnDiscover) {
+            btnDiscover.disabled = true;
         }
         setValidationStatus("VALIDATING", `Probing model '${modelId}' with provider...`);
 
@@ -262,19 +290,46 @@ document.addEventListener("DOMContentLoaded", function () {
                     selectedModelObj
                 );
             } else {
-                const errCode = result.error?.code || result.data?.status || "UNKNOWN";
+                const errCode = result.error?.code || result.data?.status || "ACCESS_DENIED";
                 const errMsg = result.error?.message || `Validation failed for '${modelId}'.`;
                 setValidationStatus(errCode, errMsg, selectedModelObj);
             }
         } catch (err) {
-            console.error("Validation error:", err);
             setValidationStatus("UNKNOWN", "Network or server communication error during model validation.");
         } finally {
+            isValidating = false;
             if (btnValidate) {
                 btnValidate.disabled = false;
                 btnValidate.innerHTML = '<i class="bi bi-shield-check me-1"></i> Validate Model';
             }
+            if (btnDiscover) {
+                btnDiscover.disabled = false;
+            }
         }
+    }
+
+    // Form Submit handling with double-submit protection
+    if (settingsForm) {
+        settingsForm.addEventListener("submit", function (e) {
+            const selectedValue = modelSelect ? modelSelect.value : "";
+            if (selectedValue === "__custom__") {
+                if (customModelInput && customModelInput.value.trim()) {
+                    if (modelNameInput) modelNameInput.value = customModelInput.value.trim();
+                } else {
+                    e.preventDefault();
+                    alert("Please enter a custom model ID before saving.");
+                    if (customModelInput) customModelInput.focus();
+                    return;
+                }
+            } else if (modelSelect && modelSelect.value) {
+                if (modelNameInput) modelNameInput.value = modelSelect.value;
+            }
+
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving Settings...';
+            }
+        });
     }
 
     // Event Listeners

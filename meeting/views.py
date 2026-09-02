@@ -10,6 +10,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import FileSystemStorage
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -38,9 +39,8 @@ def home(request):
 
     if request.method == "POST":
 
-        uploaded_file = request.FILES.get("meeting_file")
-
-        if uploaded_file:
+        if "meeting_file" in request.FILES:
+            uploaded_file = request.FILES["meeting_file"]
 
             user_settings = SettingsService.get_settings(request.user)
             if not user_settings or not user_settings.get("api_key"):
@@ -133,58 +133,72 @@ def home(request):
 
                 Meeting.objects.create(
                     user=request.user, 
-
                     meeting_name=filename,
-
                     original_file=filename,
-
                     audio_file=os.path.basename(audio_path),
-
                     transcript_file=os.path.basename(transcript_path),
-
                     provider=user_settings["provider"],
-
                     model_name=user_settings["model_name"],
-
                     meeting_type="",
-
                     transcript=transcript,
-
                     ai_report=report,
-
                     duration=meeting_info["duration"],
-
                     file_size=uploaded_file.size,
-
                     status="completed"
                 )      
 
             except subprocess.CalledProcessError:
+                logger.error("FFmpeg audio extraction failed for file '%s'", filename)
+                if filepath and os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
                 status = "❌ Failed to extract audio from the uploaded media file. Please ensure a valid audio/video file is uploaded."
-                return render(request, "meeting/index.html", 
-                    {"status": status,
-                     "transcript": transcript,
-                     "report": report,
-                      }
+                return render(
+                    request,
+                    "meeting/index.html",
+                    {
+                        "status": status,
+                        "transcript": transcript,
+                        "report": report,
+                    }
                 )
 
             except TimeoutError:
+                logger.warning("Meeting processing timed out for file '%s'", filename)
+                if filepath and os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
                 status = "⏳ Meeting processing timed out. Please try uploading a shorter recording clip for this demo."
-                return render(request, "meeting/index.html", 
-                    {"status": status,
-                     "transcript": transcript,
-                     "report": report,
-                     }
+                return render(
+                    request,
+                    "meeting/index.html",
+                    {
+                        "status": status,
+                        "transcript": transcript,
+                        "report": report,
+                    }
                 )
 
             except Exception as e:
-                traceback.print_exc()
-                status = f"❌ An error occurred during processing: {str(e)}"
-                return render(request, "meeting/index.html", 
-                    {"status": status,
-                     "transcript": transcript,
-                     "report": report,
-                     }
+                logger.exception("An error occurred during meeting processing for user '%s': %s", request.user.username, e)
+                if filepath and os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
+                status = f"❌ An error occurred during processing: {str(e)[:150]}"
+                return render(
+                    request,
+                    "meeting/index.html",
+                    {
+                        "status": status,
+                        "transcript": transcript,
+                        "report": report,
+                    }
                 )          
 
             status = f"File Saved Successfully : {filename}"
@@ -215,17 +229,20 @@ def settings(request):
         
         if form.is_valid():
 
+            provider_val = form.cleaned_data["provider"]
+            model_val = form.cleaned_data["model_name"]
+
             SettingsService.save_settings(
                 user=request.user,
-                provider=form.cleaned_data["provider"],
+                provider=provider_val,
                 api_key=form.cleaned_data["api_key"],
-                model_name=form.cleaned_data["model_name"],
+                model_name=model_val,
             )
             logger.info(
                 "Saved AI settings for user '%s' (provider: %s, model: %s)",
                 request.user.username,
-                form.cleaned_data["provider"],
-                form.cleaned_data["model_name"],
+                provider_val,
+                model_val,
             )
             provider = ProviderFactory.get_provider(request.user)
             if provider:
@@ -235,6 +252,7 @@ def settings(request):
                 except Exception as e:
                     logger.warning("Provider connection test failed: %s", e)
 
+            messages.success(request, f"AI Settings for {provider_val.title()} saved successfully!")
             return redirect("settings")
 
     else:
