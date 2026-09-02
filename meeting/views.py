@@ -1,44 +1,37 @@
-from django.conf import settings
-from django.shortcuts import render
-from django.core.files.storage import FileSystemStorage
-
-
 import os
+import json
+import logging
 import subprocess
+import traceback
 from datetime import datetime
 
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
+from django.core.files.storage import FileSystemStorage
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+
 from .models import AISettings, Meeting, format_duration
-from .forms import (
-    AISettingsForm,
-    RegisterForm,
-    LoginForm
-)
-import traceback
-from django.shortcuts import redirect
+from .forms import AISettingsForm, RegisterForm, LoginForm
 from meeting.services.settings_service import SettingsService
 from meeting.services.provider_factory import ProviderFactory
 from meeting.services.ai_analysis_service import AIAnalysisService
 from meeting.services.audio_service import AudioService
 from meeting.services.transcript_service import TranscriptService
+from meeting.providers.base_provider import ModelStatus
+from meeting.providers.registry import ProviderRegistry
+from meeting.providers.factory import ProviderFactory as BaseProviderFactory
+from meeting.services.model_discovery_service import ModelDiscoveryService
+from meeting.services.model_validation_service import ModelValidationService
 
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.shortcuts import render, redirect
-from django.contrib.auth import login
-from .forms import RegisterForm
-from django.shortcuts import get_object_or_404
+logger = logging.getLogger(__name__)
+
 
 @login_required(login_url="login")
 def home(request):
-
-    print("=" * 60)
-    print("Gemini API Key")
-    print("=" * 60)
-    print("Gemini API Loaded Successfully")
-    print("=" * 60)
-     
-
     status = "Waiting for meeting upload..."
     transcript = ""
     report = ""
@@ -51,7 +44,7 @@ def home(request):
 
             user_settings = SettingsService.get_settings(request.user)
             if not user_settings or not user_settings.get("api_key"):
-                status = "⚠️ Please configure your Gemini API Key in Settings before analyzing meetings."
+                status = "⚠️ Please configure your AI Provider and API Key in Settings before analyzing meetings."
                 return render(request, "meeting/index.html", {"status": status})
 
             allowed_extensions = [
@@ -76,6 +69,25 @@ def home(request):
                 status = f"⚠️ File size ({actual_mb} MB) exceeds the demo limit of {limit_mb} MB. Please upload a shorter meeting clip."
                 return render(request, "meeting/index.html", {"status": status})
 
+            # Check AI Provider configuration and run pre-flight health check before saving to disk & running FFmpeg
+            provider = ProviderFactory.get_provider(request.user)
+            if not provider:
+                status = "⚠️ Please configure your AI Provider and API Key in Settings before analyzing meetings."
+                return render(request, "meeting/index.html", {"status": status})
+
+            preflight = ModelValidationService.preflight_check(provider)
+            if not preflight.is_valid:
+                prefix_map = {
+                    ModelStatus.ACCESS_DENIED: "❌ AI Authentication Failed",
+                    ModelStatus.UNAVAILABLE: "❌ AI Model Unavailable",
+                    ModelStatus.QUOTA_EXCEEDED: "❌ AI Quota Exceeded",
+                    ModelStatus.RATE_LIMITED: "⏳ AI Rate Limited",
+                    ModelStatus.TEMPORARILY_UNAVAILABLE: "⚠️ AI Service Busy",
+                }
+                prefix = prefix_map.get(preflight.status, "❌ AI Configuration Error")
+                status = f"{prefix}: {preflight.message}"
+                return render(request, "meeting/index.html", {"status": status})
+
             fs = FileSystemStorage()
 
             filename = fs.save(uploaded_file.name, uploaded_file)
@@ -97,23 +109,7 @@ def home(request):
                     "duration": audio_info["duration_seconds"],
                 }
 
-                print("=" * 60)
-                print("Audio Information")
-                print("=" * 60)
-
-                for key, value in audio_info.items():
-                    print(f"{key} : {value}")
-
-                print("=" * 60)    
-
-                print("=" * 60)
-                print("Audio Extracted Successfully")
-                print("Audio Path :", audio_path)
-                print("=" * 60)
-
-                print("=" * 60)
-                print("Generating Transcript...")
-                print("=" * 60)
+                logger.info("Extracting audio from '%s' -> '%s'", filename, audio_path)
 
                 transcript = AIAnalysisService.generate_transcript(
                     request.user,
@@ -131,32 +127,9 @@ def home(request):
 
                 meeting_info["transcript_path"] = transcript_path    
 
-                print("=" * 60)
-                print("Transcript Generated Successfully")
+                logger.info("Saved transcript for '%s' to '%s'", filename, transcript_path)
 
-                print("Transcript Path :", transcript_path)
-                print("=" * 60) 
-
-                print("Transcript Saved Successfully")
-                print("=" * 60)
-
-                print("=" * 60)
-                print("Meeting Transcript")
-                print("=" * 60)
-                print(transcript)
-                print("=" * 60)
-
-                print("=" * 60)
-                print("Generating AI Report...")
-                print("=" * 60)
                 report = AIAnalysisService.generate_report(request.user,transcript)
-                print("=" * 60)
-                print("AI Report")
-                print("=" * 60)
-                print(report)
-                print("=" * 60)
-
-                settings_obj = SettingsService.get_settings(request.user)
 
                 Meeting.objects.create(
                     user=request.user, 
@@ -169,9 +142,9 @@ def home(request):
 
                     transcript_file=os.path.basename(transcript_path),
 
-                    provider=settings_obj["provider"],
+                    provider=user_settings["provider"],
 
-                    model_name=settings_obj["model_name"],
+                    model_name=user_settings["model_name"],
 
                     meeting_type="",
 
@@ -214,13 +187,6 @@ def home(request):
                      }
                 )          
 
-            print("=" * 60)
-            print("Meeting Information")
-            print("=" * 60)
-            for key, value in meeting_info.items():
-                print(f"{key} : {value}")
-            print("=" * 60)
-
             status = f"File Saved Successfully : {filename}"
 
         else:
@@ -247,12 +213,7 @@ def settings(request):
 
         form = AISettingsForm(request.POST)
         
-        print(form.errors)
         if form.is_valid():
-
-            print("=" * 60)
-            print(form.cleaned_data)
-            print("=" * 60)
 
             SettingsService.save_settings(
                 user=request.user,
@@ -260,23 +221,19 @@ def settings(request):
                 api_key=form.cleaned_data["api_key"],
                 model_name=form.cleaned_data["model_name"],
             )
+            logger.info(
+                "Saved AI settings for user '%s' (provider: %s, model: %s)",
+                request.user.username,
+                form.cleaned_data["provider"],
+                form.cleaned_data["model_name"],
+            )
             provider = ProviderFactory.get_provider(request.user)
             if provider:
                 try:
                     result = provider.test_connection()
-
-                    print("=" * 60)
-                    print("Provider Connection Test")
-                    print("=" * 60)
-                    print(result)
-                    print("=" * 60)
-
+                    logger.debug("Provider connection test result: %s", result.status.value)
                 except Exception as e:
-                    print("=" * 60)
-                    print("Provider Connection Failed")
-                    print("=" * 60)
-                    print(e)
-                    print("=" * 60)    
+                    logger.warning("Provider connection test failed: %s", e)
 
             return redirect("settings")
 
@@ -295,12 +252,17 @@ def settings(request):
 
             form = AISettingsForm()
 
+    current_model = settings_data.get("model_name", "gemini-2.5-flash") if settings_data else "gemini-2.5-flash"
+    current_provider = settings_data.get("provider", "gemini") if settings_data else "gemini"
+
     return render(
         request,
         "meeting/settings.html",
         {
             "form": form,
             "api_key_configured": api_key_configured,
+            "current_model": current_model,
+            "current_provider": current_provider,
         }
     )  
 
@@ -348,13 +310,6 @@ def register(request):
     if request.method == "POST":
 
         form = RegisterForm(request.POST)
-        print("="*50)
-        print(request.POST)
-        print("="*50)
-
-        print("="*50)
-        print(form.errors)
-        print("="*50)
 
         if form.is_valid():
             user = form.save(commit=False)
@@ -463,4 +418,256 @@ def meeting_detail(request, meeting_id):
         {
             "meeting": meeting
         }
-    )          
+    )
+
+
+@login_required(login_url="login")
+@require_POST
+def discover_models_api(request):
+    """
+    AJAX endpoint to discover application-compatible AI models for a provider.
+    Accepts JSON body or POST form data containing provider and optional unsaved api_key.
+    """
+    try:
+        if request.content_type == "application/json" and request.body:
+            try:
+                body_data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "data": None,
+                        "error": {
+                            "code": "INVALID_JSON",
+                            "message": "Malformed JSON payload.",
+                        },
+                    },
+                    status=400,
+                )
+        else:
+            body_data = request.POST
+
+        provider_name = (body_data.get("provider") or "").strip().lower()
+        if not provider_name:
+            provider_name = "gemini"
+
+        if not ProviderRegistry.is_registered(provider_name):
+            available = ", ".join(ProviderRegistry.list_providers())
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "INVALID_PROVIDER",
+                        "message": f"Provider '{provider_name}' is not supported. Supported providers: {available}.",
+                    },
+                },
+                status=400,
+            )
+
+        api_key = (body_data.get("api_key") or "").strip()
+        if not api_key:
+            saved_settings = SettingsService.get_settings(request.user)
+            if saved_settings and saved_settings.get("api_key"):
+                api_key = saved_settings["api_key"]
+
+        # Create provider instance
+        provider_settings = {
+            "provider": provider_name,
+            "api_key": api_key,
+        }
+        provider = BaseProviderFactory.create_provider_safe(provider_name, provider_settings)
+        if not provider:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "PROVIDER_INITIALIZATION_FAILED",
+                        "message": f"Could not initialize provider '{provider_name}'.",
+                    },
+                },
+                status=400,
+            )
+
+        # Discover & filter compatible models
+        compatible_models = ModelDiscoveryService.discover_and_filter(provider)
+
+        sanitized_models = []
+        for m in compatible_models:
+            sanitized_models.append({
+                "id": m.id,
+                "display_name": m.display_name,
+                "status": m.status.value,
+                "status_message": m.status_message,
+                "source": m.source.value,
+                "is_recommended": m.is_recommended,
+                "quality_score": m.quality_score,
+                "speed_score": m.speed_score,
+                "context_window": m.context_window,
+            })
+
+        recommended_model = ModelDiscoveryService.get_recommended_model(compatible_models)
+        recommended_model_id = recommended_model.id if recommended_model else None
+
+        return JsonResponse({
+            "success": True,
+            "data": {
+                "models": sanitized_models,
+                "recommended_model_id": recommended_model_id,
+            },
+            "error": None,
+        })
+
+    except Exception as exc:
+        return JsonResponse(
+            {
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "DISCOVERY_FAILED",
+                    "message": f"Model discovery failed: {str(exc)[:120]}",
+                },
+            },
+            status=500,
+        )
+
+
+@login_required(login_url="login")
+@require_POST
+def validate_model_api(request):
+    """
+    AJAX endpoint to selectively validate live access to a single AI model.
+    Accepts JSON body or POST form data containing provider, model_id, and optional unsaved api_key.
+    """
+    try:
+        if request.content_type == "application/json" and request.body:
+            try:
+                body_data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "data": None,
+                        "error": {
+                            "code": "INVALID_JSON",
+                            "message": "Malformed JSON payload.",
+                        },
+                    },
+                    status=400,
+                )
+        else:
+            body_data = request.POST
+
+        provider_name = (body_data.get("provider") or "").strip().lower()
+        if not provider_name:
+            provider_name = "gemini"
+
+        if not ProviderRegistry.is_registered(provider_name):
+            available = ", ".join(ProviderRegistry.list_providers())
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "INVALID_PROVIDER",
+                        "message": f"Provider '{provider_name}' is not supported. Supported providers: {available}.",
+                    },
+                },
+                status=400,
+            )
+
+        model_id = (body_data.get("model_id") or "").strip()
+        if not model_id:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "INVALID_MODEL_ID",
+                        "message": "Model ID is required for validation.",
+                    },
+                },
+                status=400,
+            )
+
+        api_key = (body_data.get("api_key") or "").strip()
+        if not api_key:
+            saved_settings = SettingsService.get_settings(request.user)
+            if saved_settings and saved_settings.get("api_key"):
+                api_key = saved_settings["api_key"]
+
+        if not api_key:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": {
+                        "model_id": model_id,
+                        "status": "ACCESS_DENIED",
+                    },
+                    "error": {
+                        "code": "ACCESS_DENIED",
+                        "message": "API key is required. Please provide a key or save one in AI Settings.",
+                    },
+                },
+                status=200,
+            )
+
+        # Create provider instance
+        provider_settings = {
+            "provider": provider_name,
+            "api_key": api_key,
+            "model_name": model_id,
+        }
+        provider = BaseProviderFactory.create_provider_safe(provider_name, provider_settings)
+        if not provider:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "PROVIDER_INITIALIZATION_FAILED",
+                        "message": f"Could not initialize provider '{provider_name}'.",
+                    },
+                },
+                status=400,
+            )
+
+        # Selective live model validation
+        validation_result = ModelValidationService.validate_model(provider, model_id)
+
+        if validation_result.is_valid:
+            return JsonResponse({
+                "success": True,
+                "data": {
+                    "model_id": validation_result.model_id or model_id,
+                    "status": validation_result.status.value,
+                    "message": validation_result.message,
+                },
+                "error": None,
+            })
+        else:
+            return JsonResponse({
+                "success": False,
+                "data": {
+                    "model_id": validation_result.model_id or model_id,
+                    "status": validation_result.status.value,
+                },
+                "error": {
+                    "code": validation_result.status.value,
+                    "message": validation_result.message,
+                },
+            }, status=200)
+
+    except Exception as exc:
+        return JsonResponse(
+            {
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "VALIDATION_FAILED",
+                    "message": f"Model validation error: {str(exc)[:120]}",
+                },
+            },
+            status=500,
+        )          

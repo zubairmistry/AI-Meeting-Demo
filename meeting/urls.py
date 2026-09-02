@@ -16,6 +16,18 @@ urlpatterns = [
     ),
 
     path(
+        "settings/api/discover-models/",
+        views.discover_models_api,
+        name="discover_models_api",
+    ),
+
+    path(
+        "settings/api/validate-model/",
+        views.validate_model_api,
+        name="validate_model_api",
+    ),
+
+    path(
         "dashboard/",
         views.dashboard,
         name="dashboard"

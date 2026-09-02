@@ -1,4 +1,5 @@
 {% extends "meeting/base.html" %}
+{% load static %}
 
 {% block title %}
 AI Provider Settings | AI Meeting Assistant
@@ -29,24 +30,25 @@ AI Provider Settings | AI Meeting Assistant
                     <div class="alert alert-success d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #edfdf5; border-left: 4px solid #10b981 !important;">
                         <span class="fs-4 text-success"><i class="bi bi-check-circle-fill"></i></span>
                         <div>
-                            <strong class="text-success d-block mb-1">API Key: Saved</strong>
-                            <div class="small text-muted">A saved API key is configured. You can go to the Meeting tab to analyze a meeting, or enter a new key below to update it.</div>
+                            <strong class="text-success d-block mb-1">API Key: Saved & Encrypted</strong>
+                            <div class="small text-muted">A valid API key is saved. You can discover available models below, test access, or enter a new key to update it.</div>
                         </div>
                     </div>
                 {% else %}
                     <div class="alert alert-warning d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #fffbeb; border-left: 4px solid #f59e0b !important;">
                         <span class="fs-4 text-warning"><i class="bi bi-exclamation-triangle-fill"></i></span>
                         <div>
-                            <strong class="text-warning d-block mb-1">No API key is configured yet.</strong>
-                            <div class="small text-muted">Please enter your API key below to enable AI transcription and reports.</div>
+                            <strong class="text-warning d-block mb-1">No API Key Configured Yet</strong>
+                            <div class="small text-muted">Please enter your API key below and click <strong>Discover Models</strong> to verify compatibility and access.</div>
                         </div>
                     </div>
                 {% endif %}
 
-                <form method="post">
+                <form method="post" id="ai-settings-form">
 
                     {% csrf_token %}
 
+                    <!-- Provider Selection -->
                     <div class="mb-4">
                         <label class="form-label fw-bold">
                             <i class="bi bi-cpu text-primary me-1"></i> AI Provider
@@ -58,9 +60,13 @@ AI Provider Settings | AI Meeting Assistant
                         <div class="form-text text-muted">Select your preferred AI platform for transcription and reasoning.</div>
                     </div>
 
+                    <!-- API Key Input + Discovery Trigger -->
                     <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-key text-primary me-1"></i> API Key
+                        <label class="form-label fw-bold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-key text-primary me-1"></i> API Key</span>
+                            <button type="button" id="btn-discover-models" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Discover Models
+                            </button>
                         </label>
                         {{ form.api_key }}
                         {% if form.api_key.errors %}
@@ -71,19 +77,54 @@ AI Provider Settings | AI Meeting Assistant
                                 <i class="bi bi-shield-lock-fill text-success"></i> Leave blank to keep your currently saved encrypted API key.
                             </div>
                         {% else %}
-                            <div class="form-text text-muted">Enter your provider API key. It will be encrypted at rest.</div>
+                            <div class="form-text text-muted">Enter your provider API key. It will be encrypted with Fernet before saving.</div>
                         {% endif %}
                     </div>
 
+                    <!-- Dynamic Model Selection & Live Validation UI -->
                     <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-box text-primary me-1"></i> Model Name
+                        <label class="form-label fw-bold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-box text-primary me-1"></i> AI Model</span>
+                            <button type="button" id="btn-validate-model" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-shield-check me-1"></i> Validate Model
+                            </button>
                         </label>
-                        {{ form.model_name }}
+
+                        <!-- Dynamic Model Dropdown -->
+                        <select id="model_select" class="form-select mb-2">
+                            <option value="{{ current_model }}">{{ current_model }} (Current)</option>
+                        </select>
+
+                        <!-- Hidden synced field for Django form POST -->
+                        <div class="d-none">
+                            {{ form.model_name }}
+                        </div>
                         {% if form.model_name.errors %}
                             <div class="text-danger small mt-1">{{ form.model_name.errors }}</div>
                         {% endif %}
-                        <div class="form-text text-muted">e.g., gemini-2.5-flash, gemini-1.5-pro</div>
+
+                        <!-- Custom Model ID input (shown if user selects 'Enter Custom Model ID...') -->
+                        <div id="custom_model_container" class="mt-2 d-none">
+                            <label class="form-label small fw-bold text-secondary">Custom Model ID:</label>
+                            <input type="text" id="custom_model_input" class="form-control form-control-sm" placeholder="e.g., gemini-2.5-pro">
+                        </div>
+
+                        <!-- Live Validation Feedback Box -->
+                        <div id="model_status_container" class="p-3 mt-3 rounded-3 border bg-light d-none">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div id="model_status_badge">
+                                    <span class="badge bg-secondary text-white px-3 py-2 rounded-pill">
+                                        <i class="bi bi-info-circle me-1"></i> Status: Untested
+                                    </span>
+                                </div>
+                                <div id="model_meta_container" class="small d-flex flex-wrap gap-1"></div>
+                            </div>
+                            <div id="model_status_message" class="small text-muted mb-0"></div>
+                        </div>
+
+                        <div class="form-text text-muted mt-2">
+                            Only models verified for audio transcription and text generation are recommended.
+                        </div>
                     </div>
 
                     <div class="d-grid mt-5">
@@ -109,4 +150,17 @@ AI Provider Settings | AI Meeting Assistant
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.AI_SETTINGS_CONFIG = {
+        discoverUrl: "{% url 'discover_models_api' %}",
+        validateUrl: "{% url 'validate_model_api' %}",
+        apiKeyConfigured: {{ api_key_configured|yesno:"true,false" }},
+        currentModel: "{{ current_model|escapejs }}",
+        currentProvider: "{{ current_provider|escapejs }}"
+    };
+</script>
+<script src="{% static 'meeting/js/settings.js' %}?v=2.0"></script>
 {% endblock %}
