@@ -84,20 +84,29 @@ class ValidationResult:
         status: ModelStatus,
         message: str,
         model_id: str = "",
+        stage: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
     ):
         self.is_valid = is_valid
         self.status = status
         self.message = message
         self.model_id = model_id
+        self.stage = stage
+        self.details = details or {}
 
     def to_dict(self) -> Dict[str, Any]:
         """Converts the validation result to a serializable dictionary representation."""
-        return {
+        data = {
             "is_valid": self.is_valid,
             "status": self.status.value if isinstance(self.status, ModelStatus) else str(self.status),
             "message": self.message,
             "model_id": self.model_id,
         }
+        if self.stage:
+            data["stage"] = self.stage
+        if self.details:
+            data["details"] = self.details
+        return data
 
 
 class BaseAIProvider(ABC):

@@ -1,22 +1,24 @@
 /* ==========================================================================
-   Dashboard Styling — Premium Enterprise 3D & Glow Design
+   AI MEETING ASSISTANT — DASHBOARD STYLES (5-THEME COMPATIBLE)
    ========================================================================== */
 
-/* Hero Banner */
+/* 1. Hero Banner */
 .dashboard-hero {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
-    padding: 28px 32px;
-    margin-bottom: 30px;
-    box-shadow: var(--shadow-sm);
+    background: var(--surface-glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-card);
     position: relative;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 16px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .dashboard-hero::before {
@@ -24,63 +26,55 @@
     position: absolute;
     top: -50%;
     right: -10%;
-    width: 320px;
-    height: 320px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
     border-radius: 50%;
     pointer-events: none;
 }
 
 .dashboard-hero-title {
-    font-size: 1.75rem;
+    font-size: 1.55rem;
     font-weight: 800;
-    color: var(--text-main);
-    letter-spacing: -0.5px;
-    margin-bottom: 6px;
+    color: var(--text-main) !important;
+    letter-spacing: -0.4px;
+    margin-bottom: 4px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .dashboard-hero-subtitle {
-    color: var(--text-muted);
-    font-size: 0.98rem;
+    color: var(--text-muted) !important;
+    font-size: 0.92rem;
     margin: 0;
 }
 
 /* ==========================================================================
-   KPI Dashboard Cards — [ICON] TITLE (inline) + VALUE (centered)
+   2. KPI Dashboard Cards (4 Cards with Distinct Accents & Glows)
    ========================================================================== */
 
 .dashboard-card {
-    border-radius: var(--radius-xl);
-    padding: 24px 20px;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 18px;
+    padding: 22px 18px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     position: relative;
     overflow: hidden;
-    min-height: 142px;
+    min-height: 130px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    background: var(--surface-glass);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
-.dashboard-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
-    opacity: 0.9;
-}
-
-/* Hover Glow & Lift */
 .dashboard-card:hover {
-    transform: translateY(-4px) scale(1.02);
+    transform: translateY(-3px) scale(1.02);
 }
 
 /* Header Row: [ICON] CARD NAME on SAME line */
@@ -89,7 +83,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     width: 100%;
 }
 
@@ -102,11 +96,11 @@
 }
 
 .card-title {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0.6px;
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
     margin: 0;
     line-height: 1;
 }
@@ -121,70 +115,69 @@
 
 .dashboard-card h2 {
     margin: 0;
-    font-size: 2.35rem;
+    font-size: 2.1rem;
     font-weight: 800;
     letter-spacing: -0.5px;
     line-height: 1;
 }
 
-/* ==========================================================================
-   Card Variants & Glowing Surfaces
-   ========================================================================== */
-
-/* 1. Total Meetings (AI Blue) */
+/* 1. Total Meetings (Theme Primary) */
 .dashboard-total {
-    background: linear-gradient(145deg, #f0f7ff 0%, #ffffff 100%);
-    border: 1px solid #bfdbfe;
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 16px -2px rgba(99, 102, 241, 0.15);
 }
 
 .dashboard-total h2 {
-    color: #2563eb;
+    color: var(--primary) !important;
 }
 
 .dashboard-total:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 16px 32px -4px rgba(59, 130, 246, 0.25), 0 0 20px rgba(59, 130, 246, 0.15);
+    border-color: var(--primary);
+    box-shadow: 0 12px 28px -4px var(--primary-glow);
 }
 
 /* 2. Completed (Emerald) */
 .dashboard-success {
-    background: linear-gradient(145deg, #f0fdf4 0%, #ffffff 100%);
-    border: 1px solid #bbf7d0;
+    border-color: rgba(16, 185, 129, 0.45);
+    background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.1) 0%, transparent 60%), var(--surface-glass);
+    box-shadow: 0 4px 16px -2px rgba(16, 185, 129, 0.2);
 }
 
 .dashboard-success h2 {
-    color: #059669;
+    color: #10b981 !important;
 }
 
 .dashboard-success:hover {
     border-color: #10b981;
-    box-shadow: 0 16px 32px -4px rgba(16, 185, 129, 0.25), 0 0 20px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 12px 28px -4px rgba(16, 185, 129, 0.4);
 }
 
 /* 3. Failed (Rose) */
 .dashboard-danger {
-    background: linear-gradient(145deg, #fff1f2 0%, #ffffff 100%);
-    border: 1px solid #fecdd3;
+    border-color: rgba(239, 68, 68, 0.4);
+    background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.08) 0%, transparent 60%), var(--surface-glass);
+    box-shadow: 0 4px 16px -2px rgba(239, 68, 68, 0.15);
 }
 
 .dashboard-danger h2 {
-    color: #dc2626;
+    color: #ef4444 !important;
 }
 
 .dashboard-danger:hover {
-    border-color: #f43f5e;
-    box-shadow: 0 16px 32px -4px rgba(244, 63, 94, 0.25), 0 0 20px rgba(244, 63, 94, 0.15);
+    border-color: #ef4444;
+    box-shadow: 0 12px 28px -4px rgba(239, 68, 68, 0.35);
 }
 
-/* 4. Total Duration (Warm Gold / Amber) */
+/* 4. Total Duration (Warm Amber) */
 .dashboard-info {
-    background: linear-gradient(145deg, #fffbeb 0%, #ffffff 100%);
-    border: 1px solid #fde68a;
+    border-color: rgba(245, 158, 11, 0.4);
+    background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.08) 0%, transparent 60%), var(--surface-glass);
+    box-shadow: 0 4px 16px -2px rgba(245, 158, 11, 0.15);
 }
 
 .dashboard-info h2 {
-    color: #d97706;
-    font-size: 1.4rem;
+    color: #f59e0b !important;
+    font-size: 1.25rem;
     font-weight: 800;
     white-space: nowrap;
     line-height: 1.2;
@@ -192,114 +185,137 @@
 
 .dashboard-info:hover {
     border-color: #f59e0b;
-    box-shadow: 0 16px 32px -4px rgba(245, 158, 11, 0.25), 0 0 20px rgba(245, 158, 11, 0.15);
+    box-shadow: 0 12px 28px -4px rgba(245, 158, 11, 0.35);
 }
 
 /* ==========================================================================
-   Meeting History Table
+   3. Meeting History Section & Table
    ========================================================================== */
 
 .history-card {
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-md);
+    background: var(--surface-glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: var(--shadow-card);
     overflow: hidden;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .history-header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    color: #ffffff;
-    padding: 20px 26px;
+    background: var(--surface-subtle);
+    color: var(--text-main);
+    padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid var(--border);
 }
 
 .history-header h3 {
     margin: 0;
     font-size: 1.15rem;
-    font-weight: 700;
+    font-weight: 800;
     display: flex;
     align-items: center;
     gap: 10px;
+    color: var(--text-main) !important;
 }
 
 .history-table {
     margin-bottom: 0;
     border-collapse: separate;
     border-spacing: 0;
+    background: transparent;
+    color: var(--text-main);
+    width: 100%;
 }
 
 .history-table thead {
-    background: #f8fafc;
+    background: var(--table-header-bg) !important;
 }
 
 .history-table thead th {
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
     padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     border-top: none;
     white-space: nowrap;
+    background: transparent;
 }
 
 .history-table tbody td {
     padding: 16px 20px;
     vertical-align: middle;
     border-bottom: 1px solid var(--border-subtle);
-    font-size: 0.93rem;
-    color: var(--text-main);
+    font-size: 0.92rem;
+    color: var(--text-main) !important;
+    background: transparent;
     transition: background 0.15s ease;
 }
 
 .history-table tbody tr:hover td {
-    background: #f8fbff;
+    background: var(--table-hover-bg);
 }
 
 .meeting-link {
     font-weight: 700;
-    color: var(--text-main);
+    color: var(--text-main) !important;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    transition: var(--transition-fast);
+    transition: color 0.15s ease;
 }
 
 .meeting-link:hover {
-    color: var(--primary);
+    color: var(--primary) !important;
+}
+
+/* View Button */
+.history-table .premium-button-sm {
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px var(--primary-glow);
+}
+
+.history-table .premium-button-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px var(--primary-glow);
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .dashboard-hero {
-        padding: 20px;
+        padding: 18px;
     }
-    
+
     .dashboard-hero-title {
-        font-size: 1.35rem;
+        font-size: 1.25rem;
     }
-    
+
     .dashboard-card {
-        min-height: 125px;
-        padding: 18px 14px;
-        margin-bottom: 14px;
+        min-height: 115px;
+        padding: 16px 12px;
+        margin-bottom: 12px;
     }
-    
+
     .dashboard-card h2 {
-        font-size: 1.85rem;
+        font-size: 1.7rem;
     }
-    
+
     .dashboard-info h2 {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
     }
-    
+
     .history-table thead th,
     .history-table tbody td {
-        padding: 12px 14px;
+        padding: 10px 12px;
     }
 }

@@ -4,182 +4,209 @@
 Login | AI Meeting Assistant
 {% endblock %}
 
-{% block content %}
+{% block auth_visual %}
+<!-- ==========================================================================
+     ANIMATED 3D AI VISUAL COMPONENT (UNIFIED AUTH EXPERIENCE)
+     ========================================================================== -->
+<div id="aiVisualContainer" class="ai-visual-component">
 
-<div class="auth-header">
+    <div class="ai-stage-container">
 
-    <h1>Welcome Back</h1>
+        <!-- SVG Dynamic Connection Curves -->
+        <svg class="ai-svg-canvas" viewBox="0 0 580 520">
+            <!-- Audio to Core -->
+            <path class="ai-spline-line" d="M 120 70 Q 200 160 290 260" />
+            <!-- AI Core to Speech Engine -->
+            <path class="ai-spline-line" d="M 290 260 Q 380 160 460 70" />
+            <!-- Core to Cognitive Synthesis -->
+            <path class="ai-spline-line" d="M 290 260 Q 200 360 120 440" />
+            <!-- Cognitive Synthesis to Executive Report -->
+            <path class="ai-spline-line" d="M 290 260 Q 380 360 460 440" />
+        </svg>
 
-    <p>
-        Sign in to continue using
-        Enterprise AI Meeting Assistant.
-    </p>
+        <!-- Orbital Concentric Pulse Rings -->
+        <div class="ai-orbital-ring r1"></div>
+        <div class="ai-orbital-ring r2"></div>
 
-</div>
-
-<form method="POST" class="auth-form">
-
-    {% csrf_token %}
-
-    <!-- =========================
-         EMAIL
-    ========================== -->
-
-    <div class="mb-4">
-
-        <label class="form-label">
-            Email Address
-        </label>
-
-        <div class="input-wrapper">
-
-            <span class="input-icon">
-                <i class="bi bi-envelope"></i>
-            </span>
-
-            <input
-                type="email"
-                class="form-control auth-input {% if form.email.errors %}is-invalid{% endif %}"
-                name="email"
-                placeholder="Enter your email address"
-                value="{{ form.email.value|default_if_none:'' }}">
-
+        <!-- Central AI Core Hub -->
+        <div class="ai-core-hub">
+            <i class="bi bi-cpu ai-core-icon"></i>
+            <span class="ai-core-title">AI Core</span>
         </div>
 
-        <div
-            class="validation-message"
-            id="emailMessage">
+        <!-- 1. Node Audio Ingestion -->
+        <div class="ai-feature-node node-audio">
+            <div class="node-icon-box">
+                <i class="bi bi-mic-fill"></i>
+            </div>
+            <div class="node-text-col">
+                <span class="node-label">Audio Ingestion</span>
+                <span class="node-subtext">Multi-format audio/video stream</span>
+                <div class="audio-live-bars">
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                </div>
+            </div>
+        </div>
 
-            {% if form.email.errors %}
-                {% for error in form.email.errors %}
-                    <div class="backend-error">
-                        {{ error }}
-                    </div>
-                {% endfor %}
-            {% endif %}
+        <!-- 2. Node AI Neural Processing -->
+        <div class="ai-feature-node node-ai">
+            <div class="node-icon-box">
+                <i class="bi bi-soundwave"></i>
+            </div>
+            <div class="node-text-col">
+                <span class="node-label">Speech-to-Text</span>
+                <span class="node-subtext">16kHz acoustic neural modeling</span>
+            </div>
+        </div>
 
+        <!-- 3. Node Intelligence Engine -->
+        <div class="ai-feature-node node-intelligence">
+            <div class="node-icon-box">
+                <i class="bi bi-lightning-charge-fill"></i>
+            </div>
+            <div class="node-text-col">
+                <span class="node-label">Cognitive Synthesis</span>
+                <span class="node-subtext">Decisions, actions & sentiment</span>
+            </div>
+        </div>
+
+        <!-- 4. Node Executive Report -->
+        <div class="ai-feature-node node-report">
+            <div class="node-icon-box">
+                <i class="bi bi-file-earmark-text-fill"></i>
+            </div>
+            <div class="node-text-col">
+                <span class="node-label">Executive Insights</span>
+                <span class="node-subtext">Structured actionable summary</span>
+            </div>
         </div>
 
     </div>
 
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- ==========================================================================
+     RIGHT-SIDE 3D LOGIN CARD & FORM
+     ========================================================================== -->
+<div class="auth-header">
+    <h1>Welcome Back</h1>
+    <p>Sign in to continue using Enterprise AI Meeting Assistant.</p>
+</div>
+
+<form method="POST" class="auth-form" novalidate>
+    {% csrf_token %}
+
+    <!-- =========================
+         EMAIL ADDRESS
+    ========================== -->
+    <div class="form-group-block">
+        <label class="form-label" for="id_email">
+            Email Address
+        </label>
+        <div class="input-row-group">
+            <div class="icon-3d-box" title="Email Address">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+            </div>
+            <div class="input-wrapper">
+                <input
+                    type="email"
+                    id="id_email"
+                    class="auth-input {% if form.email.errors %}is-invalid{% endif %}"
+                    name="email"
+                    placeholder="Enter your email address"
+                    value="{{ form.email.value|default_if_none:'' }}"
+                    autocomplete="email"
+                    required>
+            </div>
+        </div>
+        <div id="emailMessage" class="validation-message"></div>
+        {% if form.email.errors %}
+            <div class="backend-error" role="alert">
+                {{ form.email.errors.0 }}
+            </div>
+        {% endif %}
+    </div>
 
     <!-- =========================
          PASSWORD
     ========================== -->
-
-    <div class="mb-4">
-
-        <label class="form-label">
+    <div class="form-group-block">
+        <label class="form-label" for="id_password">
             Password
         </label>
-
-        <div class="input-wrapper">
-
-            <span class="input-icon">
-                <i class="bi bi-lock"></i>
-            </span>
-
-            <input
-                type="password"
-                class="form-control auth-input {% if form.password.errors %}is-invalid{% endif %}"
-                name="password"
-                placeholder="Enter your password"
-                id="password">
-
-            <button
-                type="button"
-                class="password-toggle"
-                data-target="password">
-
-                <i class="bi bi-eye"></i>
-
-            </button>
-
-        </div>
-
-        {% if form.password.errors %}
-            {% for error in form.password.errors %}
-                <div class="backend-error">
-                    {{ error }}
-                </div>
-            {% endfor %}
-        {% endif %}
-
-    </div>
-
-
-    {% if form.errors %}
-
-    <div class="auth-errors">
-
-        {% for field in form %}
-
-            {% for error in field.errors %}
-
-                <div class="auth-error">
-
-                    <i class="bi bi-exclamation-circle"></i>
-
-                    {{ error }}
-
-                </div>
-
-            {% endfor %}
-
-        {% endfor %}
-
-        {% for error in form.non_field_errors %}
-
-            <div class="auth-error">
-
-                <i class="bi bi-exclamation-circle"></i>
-
-                {{ error }}
-
+        <div class="input-row-group">
+            <div class="icon-3d-box" title="Password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
             </div>
-
-        {% endfor %}
-
+            <div class="input-wrapper position-relative">
+                <input
+                    type="password"
+                    id="id_password"
+                    class="auth-input {% if form.password.errors %}is-invalid{% endif %}"
+                    name="password"
+                    placeholder="Enter your password"
+                    autocomplete="current-password"
+                    required>
+                <button
+                    type="button"
+                    class="password-toggle"
+                    data-target="id_password"
+                    aria-label="Show password"
+                    tabindex="-1">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </div>
+        </div>
+        {% if form.password.errors %}
+            <div class="backend-error" role="alert">
+                {{ form.password.errors.0 }}
+            </div>
+        {% endif %}
     </div>
-
-    {% endif %}
-
 
     <!-- =========================
-         SUBMIT BUTTON
+         NON-FIELD / GENERAL FORM ERRORS
     ========================== -->
+    {% if form.non_field_errors %}
+        <div class="auth-errors" role="alert">
+            {% for error in form.non_field_errors %}
+                <div class="auth-error">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>{{ error }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
-    <button
-        type="submit"
-        id="registerBtn"
-        class="premium-button premium-button-primary auth-btn w-100">
-
-        <span class="btn-text">
-            <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
-        </span>
-
+    <!-- =========================
+         3D SUBMIT BUTTON
+    ========================== -->
+    <button type="submit" id="loginBtn" class="btn-get-started">
+        <span class="btn-text">Sign In</span>
         <span class="btn-loading">
-            <span class="spinner"></span>
-            Signing In...
+            <span class="auth-spinner"></span>
+            <span>Signing In...</span>
         </span>
-
     </button>
 
+    <!-- =========================
+         SWITCH TO REGISTER LINK
+    ========================== -->
+    <div class="auth-footer">
+        Don't have an account?
+        <a href="{% url 'register' %}">Register here</a>
+    </div>
 </form>
-
-
-<!-- =========================
-     FOOTER
-========================== -->
-
-<div class="auth-footer">
-
-    Don't have an account?
-
-    <a href="{% url 'register' %}">
-        Create Account
-    </a>
-
-</div>
-
 {% endblock %}

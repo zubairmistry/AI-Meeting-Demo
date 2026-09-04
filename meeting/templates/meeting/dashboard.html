@@ -1,10 +1,8 @@
 {% extends "meeting/base.html" %}
-
 {% load static %}
 
-{% block extra_css %}
-<link rel="stylesheet"
-      href="{% static 'meeting/css/dashboard.css' %}?v=3.0">
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'meeting/css/dashboard.css' %}?v=4.3">
 {% endblock %}
 
 {% block title %}
@@ -93,10 +91,10 @@ Dashboard | AI Meeting Assistant
 
     <div class="history-header">
         <h3>
-            <i class="bi bi-journal-text text-primary-light"></i>
+            <i class="bi bi-journal-text text-primary"></i>
             <span>Meeting History</span>
         </h3>
-        <span class="badge bg-white text-dark px-3 py-2 fw-semibold" style="border-radius: var(--radius-full); font-size: 0.82rem;">
+        <span class="badge px-3 py-2 fw-semibold" style="background: rgba(125,125,125,0.15); color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 9999px; font-size: 0.82rem;">
             {{ total_meetings }} Record{{ total_meetings|pluralize }}
         </span>
     </div>
@@ -130,23 +128,23 @@ Dashboard | AI Meeting Assistant
                             <a href="{% url 'meeting_detail' meeting.id %}" class="meeting-link">
                                 <i class="bi bi-file-earmark-play text-primary"></i>
                                 <span>{{ meeting.meeting_name }}</span>
-                            </a> 
+                            </a>
                         </td>
 
                         <td>
-                            <span class="fw-semibold text-secondary">
+                            <span class="fw-semibold" style="color: var(--text-secondary);">
                                 {{ meeting.provider|title }}
                             </span>
                         </td>
 
                         <td>
-                            <code class="text-dark bg-light px-2 py-1 rounded" style="font-size: 0.85rem;">
+                            <code class="px-2 py-1 rounded" style="background: var(--code-bg); color: var(--text-main); font-size: 0.85rem; border: 1px solid var(--border-subtle);">
                                 {{ meeting.model_name }}
                             </code>
                         </td>
 
                         <td>
-                            <span class="fw-semibold text-dark">
+                            <span class="fw-semibold" style="color: var(--text-main);">
                                 {{ meeting.formatted_duration }}
                             </span>
                         </td>
@@ -167,7 +165,7 @@ Dashboard | AI Meeting Assistant
                             {% endif %}
                         </td>
 
-                        <td class="text-muted" style="font-size: 0.88rem;">
+                        <td style="color: var(--text-muted); font-size: 0.88rem;">
                             {{ meeting.created_at|date:"d M Y H:i" }}
                         </td>
 
@@ -191,8 +189,8 @@ Dashboard | AI Meeting Assistant
 
         <div class="text-center py-5">
             <div class="mb-3" style="font-size: 48px;">📂</div>
-            <h5 class="fw-bold text-dark">No meetings analyzed yet</h5>
-            <p class="text-muted mb-4">Upload your first meeting recording to see transcription and AI reports here.</p>
+            <h5 class="fw-bold" style="color: var(--text-main);">No meetings analyzed yet</h5>
+            <p class="mb-4" style="color: var(--text-muted);">Upload your first meeting recording to see transcription and AI reports here.</p>
             <a href="{% url 'meeting' %}" class="premium-button premium-button-primary">
                 <i class="bi bi-upload"></i> Analyze Your First Meeting
             </a>

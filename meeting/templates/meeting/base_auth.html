@@ -1,135 +1,98 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="classic">
 
 <head>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>
-        {% block title %}
-            AI Meeting Assistant
-        {% endblock %}
+        {% block title %}AI Meeting Assistant{% endblock %}
     </title>
 
+    <!-- Instant Theme Initialization Script (Prevents FOUC) -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('ai_meeting_theme');
+                var validThemes = ['classic', 'light', 'dark', 'neon', 'enterprise'];
+                if (savedTheme && validThemes.indexOf(savedTheme) !== -1) {
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <link rel="stylesheet" href="{% static 'meeting/css/auth.css' %}">
-
+    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+    <!-- Enterprise Auth & Theme Stylesheet -->
+    <link rel="stylesheet" href="{% static 'meeting/css/auth.css' %}">
 </head>
 
 <body>
 
 <div class="auth-wrapper">
 
-    <div class="container">
-
-        <div class="row align-items-center min-vh-100">
-
-            <!-- =======================================
-                 LEFT SHOWCASE
-            ======================================== -->
-
-            <div class="col-lg-6 d-none d-lg-flex">
-
-                <div class="auth-left">
-
-                    <div class="auth-showcase">
-
-                        <!-- AI Illustration -->
-
-                        <img
-                            src="{% static 'meeting/images/ai-illustration.svg' %}"
-                            class="img-fluid auth-image"
-                            alt="AI Illustration">
-
-                        <!-- Showcase Content -->
-
-                        <div class="showcase-content">
-
-                            <h2>Enterprise AI Meeting Assistant</h2>
-
-                            <p>
-                                Intelligent meeting transcription,
-                                AI-powered analysis, secure cloud processing
-                                and enterprise-grade reporting —
-                                all in one modern platform.
-                            </p>
-
-                            <div class="feature-list">
-
-                                <div class="feature-item">
-                                    <span class="feature-icon">✓</span>
-                                    Secure Authentication
-                                </div>
-
-                                <div class="feature-item">
-                                    <span class="feature-icon">✓</span>
-                                    AI Powered Analysis
-                                </div>
-
-                                <div class="feature-item">
-                                    <span class="feature-icon">✓</span>
-                                    Multi AI Provider Support
-                                </div>
-
-                                <div class="feature-item">
-                                    <span class="feature-icon">✓</span>
-                                    Enterprise Grade Security
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        <!-- Floating Glass Badges -->
-
-                        <div class="floating-badges">
-
-                            <div class="glass-badge">
-                                🔒 Secure
-                            </div>
-
-                            <div class="glass-badge">
-                                🤖 Gemini • Claude • OpenAI
-                            </div>
-
-                            <div class="glass-badge">
-                                ⚡ Enterprise Ready
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
+    <!-- Floating Top-Right Theme Selector -->
+    <div class="floating-theme-bar">
+        <div class="theme-selector-wrapper">
+            <button type="button" id="themeSelectorBtn" class="theme-pill-btn" aria-label="Select Theme" aria-expanded="false">
+                <span class="theme-icon-orb"><i class="bi bi-palette-fill"></i></span>
+                <span id="currentThemeLabel">Classic</span>
+                <i class="bi bi-chevron-down ms-1" style="font-size: 11px;"></i>
+            </button>
+            <div id="themeDropdownMenu" class="theme-dropdown-menu">
+                <button type="button" class="theme-opt-btn active" data-theme-val="classic">
+                    <span class="theme-dot classic"></span>
+                    <span>Classic</span>
+                </button>
+                <button type="button" class="theme-opt-btn" data-theme-val="light">
+                    <span class="theme-dot light"></span>
+                    <span>Light</span>
+                </button>
+                <button type="button" class="theme-opt-btn" data-theme-val="dark">
+                    <span class="theme-dot dark"></span>
+                    <span>Dark</span>
+                </button>
+                <button type="button" class="theme-opt-btn" data-theme-val="neon">
+                    <span class="theme-dot neon"></span>
+                    <span>AI Neon</span>
+                </button>
+                <button type="button" class="theme-opt-btn" data-theme-val="enterprise">
+                    <span class="theme-dot enterprise"></span>
+                    <span>Enterprise</span>
+                </button>
             </div>
-
-            <!-- =======================================
-                 RIGHT AUTH CARD
-            ======================================== -->
-
-            <div class="col-lg-6">
-
-                <div class="auth-card">
-
-                    {% block content %}
-                    {% endblock %}
-
-                </div>
-
-            </div>
-
         </div>
+    </div>
 
+    <div class="auth-container">
+        {% block auth_layout %}
+            <div class="auth-two-column-grid">
+                <!-- Left Visual Area -->
+                <div class="auth-left-pane">
+                    {% block auth_visual %}
+                    {% endblock %}
+                </div>
+
+                <!-- Right Form Card Area -->
+                <div class="auth-right-pane">
+                    <div class="auth-card-3d">
+                        {% block content %}
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        {% endblock %}
     </div>
 
 </div>
 
+<!-- Auth Controller Script -->
 <script src="{% static 'meeting/js/auth.js' %}"></script>
 
 </body>

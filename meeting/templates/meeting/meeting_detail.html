@@ -16,11 +16,11 @@
                 <a href="{% url 'dashboard' %}" class="premium-button premium-button-secondary premium-button-sm mb-2">
                     <i class="bi bi-arrow-left"></i> Back to Dashboard
                 </a>
-                <h1 class="page-title mb-1 d-flex align-items-center gap-2">
+                <h1 class="page-title mb-1 d-flex align-items-center gap-2" style="color: var(--text-main); font-size: 1.6rem; font-weight: 800;">
                     <i class="bi bi-file-earmark-play-fill text-primary"></i>
                     <span>{{ meeting.meeting_name }}</span>
                 </h1>
-                <p class="page-subtitle">Processed with {{ meeting.provider|title }} ({{ meeting.model_name }}) on {{ meeting.created_at|date:"d M Y H:i" }}</p>
+                <p class="page-subtitle" style="color: var(--text-muted); font-size: 0.92rem;">Processed with {{ meeting.provider|title }} ({{ meeting.model_name }}) on {{ meeting.created_at|date:"d M Y H:i" }}</p>
             </div>
             <div>
                 {% if meeting.status == "completed" %}
@@ -44,27 +44,27 @@
             <div class="premium-card-body p-4">
                 <div class="row g-3 text-center">
                     <div class="col-6 col-md-3">
-                        <div class="p-3 bg-light rounded-3">
-                            <div class="text-muted small fw-bold text-uppercase mb-1">Provider</div>
-                            <div class="fw-bold text-dark fs-6">{{ meeting.provider|title }}</div>
+                        <div class="p-3 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--border);">
+                            <div class="small fw-bold text-uppercase mb-1" style="color: var(--text-muted);">Provider</div>
+                            <div class="fw-bold fs-6" style="color: var(--text-main);">{{ meeting.provider|title }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="p-3 bg-light rounded-3">
-                            <div class="text-muted small fw-bold text-uppercase mb-1">Model</div>
-                            <div class="fw-bold text-dark fs-6 text-truncate" title="{{ meeting.model_name }}">{{ meeting.model_name }}</div>
+                        <div class="p-3 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--border);">
+                            <div class="small fw-bold text-uppercase mb-1" style="color: var(--text-muted);">Model</div>
+                            <div class="fw-bold fs-6 text-truncate" style="color: var(--text-main);" title="{{ meeting.model_name }}">{{ meeting.model_name }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="p-3 bg-light rounded-3">
-                            <div class="text-muted small fw-bold text-uppercase mb-1">Duration</div>
+                        <div class="p-3 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--border);">
+                            <div class="small fw-bold text-uppercase mb-1" style="color: var(--text-muted);">Duration</div>
                             <div class="fw-bold text-primary fs-6">{{ meeting.formatted_duration }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="p-3 bg-light rounded-3">
-                            <div class="text-muted small fw-bold text-uppercase mb-1">Created At</div>
-                            <div class="fw-bold text-dark fs-6">{{ meeting.created_at|date:"d M Y H:i" }}</div>
+                        <div class="p-3 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--border);">
+                            <div class="small fw-bold text-uppercase mb-1" style="color: var(--text-muted);">Created At</div>
+                            <div class="fw-bold fs-6" style="color: var(--text-main);">{{ meeting.created_at|date:"d M Y H:i" }}</div>
                         </div>
                     </div>
                 </div>
@@ -73,29 +73,29 @@
 
         <!-- AI Executive Report Card -->
         <div class="premium-card mb-4 shadow-sm">
-            <div class="premium-card-header bg-primary text-white">
-                <h4 class="mb-0 text-white">
-                    <i class="bi bi-robot"></i>
+            <div class="premium-card-header">
+                <h4 class="mb-0 d-flex align-items-center gap-2" style="color: var(--text-main); font-size: 1.15rem; font-weight: 800;">
+                    <i class="bi bi-robot text-primary"></i>
                     <span>AI Executive Report & Key Insights</span>
                 </h4>
-                <span class="badge bg-white text-primary px-3 py-1 rounded-pill fw-bold">AI Analysis</span>
+                <span class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">AI Analysis</span>
             </div>
-            <div class="premium-card-body bg-light">
-                <pre class="m-0 p-4 bg-white rounded-3 border text-dark" style="white-space: pre-wrap; font-family: 'Inter', sans-serif; font-size: 0.95rem; line-height: 1.7;">{{ meeting.ai_report }}</pre>
+            <div class="premium-card-body">
+                <pre class="m-0 p-4 rounded-3 text-dark" style="white-space: pre-wrap; font-family: 'Inter', sans-serif; font-size: 0.94rem; line-height: 1.7; background: var(--surface-subtle); color: var(--text-main) !important; border: 1px solid var(--border);">{{ meeting.ai_report }}</pre>
             </div>
         </div>
 
         <!-- Full Transcript Card -->
         <div class="premium-card mb-4 shadow-sm">
             <div class="premium-card-header">
-                <h4 class="mb-0 text-dark">
+                <h4 class="mb-0 d-flex align-items-center gap-2" style="color: var(--text-main); font-size: 1.15rem; font-weight: 800;">
                     <i class="bi bi-chat-quote-fill text-primary"></i>
                     <span>Full Meeting Transcript</span>
                 </h4>
                 <span class="badge bg-primary-subtle text-primary px-3 py-1 rounded-pill fw-bold">Verbatim</span>
             </div>
-            <div class="premium-card-body bg-light">
-                <pre class="m-0 p-4 bg-white rounded-3 border text-dark" style="white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 0.92rem; line-height: 1.6; max-height: 500px; overflow-y: auto;">{{ meeting.transcript }}</pre>
+            <div class="premium-card-body">
+                <pre class="m-0 p-4 rounded-3 text-dark" style="white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 0.92rem; line-height: 1.6; max-height: 500px; overflow-y: auto; background: var(--surface-subtle); color: var(--text-main) !important; border: 1px solid var(--border);">{{ meeting.transcript }}</pre>
             </div>
         </div>
 

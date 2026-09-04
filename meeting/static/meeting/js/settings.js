@@ -46,7 +46,13 @@ document.addEventListener("DOMContentLoaded", function () {
         let badgeHtml = "";
         switch (status) {
             case "AVAILABLE":
-                badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i> Model Available & Verified</span>';
+                badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-patch-check-fill me-1"></i> E2E Verified & Ready</span>';
+                break;
+            case "FALLBACK_VERIFIED":
+                badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-arrow-repeat me-1"></i> Fallback Model Verified & Selected</span>';
+                break;
+            case "ALL_MODELS_FAILED":
+                badgeHtml = '<span class="badge bg-danger text-white px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i> All Models Failed E2E</span>';
                 break;
             case "ACCESS_DENIED":
                 badgeHtml = '<span class="badge bg-danger text-white px-3 py-2 rounded-pill"><i class="bi bi-shield-x me-1"></i> Access Denied / Invalid API Key</span>';
@@ -64,7 +70,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-pause-circle me-1"></i> Temporarily Unavailable / Busy</span>';
                 break;
             case "VALIDATING":
-                badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Validating Model Access...</span>';
+                badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Validating & Testing Sample Meeting...</span>';
                 break;
             case "DISCOVERING":
                 badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Discovering Compatible Models...</span>';
@@ -264,7 +270,11 @@ document.addEventListener("DOMContentLoaded", function () {
         if (btnDiscover) {
             btnDiscover.disabled = true;
         }
-        setValidationStatus("VALIDATING", `Probing model '${modelId}' with provider...`);
+        setValidationStatus("VALIDATING", `Validating access & testing full meeting workflow for '${modelId}' on sample video...`);
+
+        const candidateIds = (Array.isArray(discoveredModels) && discoveredModels.length > 0)
+            ? discoveredModels.map((m) => m.id)
+            : [];
 
         try {
             const response = await fetch(validateUrl, {
@@ -277,6 +287,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     provider: provider,
                     model_id: modelId,
                     api_key: apiKey,
+                    candidate_models: candidateIds,
                 }),
             });
 
@@ -284,15 +295,38 @@ document.addEventListener("DOMContentLoaded", function () {
             const selectedModelObj = discoveredModels.find((m) => m.id === modelId);
 
             if (result.success && result.data) {
-                setValidationStatus(
-                    result.data.status || "AVAILABLE",
-                    result.data.message || `Model '${modelId}' is verified and ready for meeting analysis!`,
-                    selectedModelObj
-                );
+                const verifiedModel = result.data.verified_model || result.data.model_id;
+                const fallbackUsed = result.data.fallback_used === true;
+
+                if (fallbackUsed) {
+                    if (modelSelect && verifiedModel) {
+                        modelSelect.value = verifiedModel;
+                    }
+                    if (modelNameInput && verifiedModel) {
+                        modelNameInput.value = verifiedModel;
+                    }
+                    const verifiedModelObj = discoveredModels.find((m) => m.id === verifiedModel) || selectedModelObj;
+                    setValidationStatus("FALLBACK_VERIFIED", result.data.message, verifiedModelObj);
+                } else {
+                    setValidationStatus(
+                        result.data.status || "AVAILABLE",
+                        result.data.message || `Model '${modelId}' passed full end-to-end meeting transcription and summary validation!`,
+                        selectedModelObj
+                    );
+                }
             } else {
-                const errCode = result.error?.code || result.data?.status || "ACCESS_DENIED";
-                const errMsg = result.error?.message || `Validation failed for '${modelId}'.`;
-                setValidationStatus(errCode, errMsg, selectedModelObj);
+                const isAllFailed = (result.error?.stage === "all_models_failed" || result.data?.stage === "all_models_failed");
+                if (isAllFailed) {
+                    setValidationStatus(
+                        "ALL_MODELS_FAILED",
+                        result.error?.message || "No discovered model passed the end-to-end meeting validation.",
+                        selectedModelObj
+                    );
+                } else {
+                    const errCode = result.error?.code || result.data?.status || "UNAVAILABLE";
+                    const errMsg = result.error?.message || `E2E validation failed for '${modelId}'.`;
+                    setValidationStatus(errCode, errMsg, selectedModelObj);
+                }
             }
         } catch (err) {
             setValidationStatus("UNKNOWN", "Network or server communication error during model validation.");

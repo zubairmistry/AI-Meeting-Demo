@@ -13,12 +13,12 @@ AI Provider Settings | AI Meeting Assistant
 
         <div class="premium-card mb-4">
 
-            <div class="premium-card-header bg-primary text-white">
-                <h3 class="mb-0 text-white">
-                    <i class="bi bi-sliders text-white"></i>
+            <div class="premium-card-header">
+                <h3 class="mb-0 fw-bold d-flex align-items-center gap-2" style="color: var(--text-main); font-size: 1.15rem;">
+                    <i class="bi bi-sliders text-primary"></i>
                     <span>AI Provider & Model Configuration</span>
                 </h3>
-                <span class="badge bg-white text-primary px-3 py-1 fw-bold rounded-pill">
+                <span class="badge px-3 py-1 fw-bold rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
                     <i class="bi bi-shield-check"></i> Encrypted
                 </span>
             </div>
@@ -27,19 +27,19 @@ AI Provider Settings | AI Meeting Assistant
 
                 <!-- Saved Status Indicator -->
                 {% if api_key_configured %}
-                    <div class="alert alert-success d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #edfdf5; border-left: 4px solid #10b981 !important;">
+                    <div class="alert alert-success d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: rgba(16, 185, 129, 0.12); border-left: 4px solid #10b981 !important;">
                         <span class="fs-4 text-success"><i class="bi bi-check-circle-fill"></i></span>
                         <div>
                             <strong class="text-success d-block mb-1">API Key: Saved & Encrypted</strong>
-                            <div class="small text-muted">A valid API key is saved. You can discover available models below, test access, or enter a new key to update it.</div>
+                            <div class="small" style="color: var(--text-muted);">A valid API key is saved. You can discover available models below, test access, or enter a new key to update it.</div>
                         </div>
                     </div>
                 {% else %}
-                    <div class="alert alert-warning d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: #fffbeb; border-left: 4px solid #f59e0b !important;">
+                    <div class="alert alert-warning d-flex align-items-center gap-3 p-3 mb-4 rounded-3 border-0 shadow-sm" style="background: rgba(245, 158, 11, 0.12); border-left: 4px solid #f59e0b !important;">
                         <span class="fs-4 text-warning"><i class="bi bi-exclamation-triangle-fill"></i></span>
                         <div>
                             <strong class="text-warning d-block mb-1">No API Key Configured Yet</strong>
-                            <div class="small text-muted">Please enter your API key below and click <strong>Discover Models</strong> to verify compatibility and access.</div>
+                            <div class="small" style="color: var(--text-muted);">Please enter your API key below and click <strong>Discover Models</strong> to verify compatibility and access.</div>
                         </div>
                     </div>
                 {% endif %}
@@ -57,14 +57,14 @@ AI Provider Settings | AI Meeting Assistant
                         {% if form.provider.errors %}
                             <div class="text-danger small mt-1">{{ form.provider.errors }}</div>
                         {% endif %}
-                        <div class="form-text text-muted">Select your preferred AI platform for transcription and reasoning.</div>
+                        <div class="form-text" style="color: var(--text-muted);">Select your preferred AI platform for transcription and reasoning.</div>
                     </div>
 
                     <!-- API Key Input + Discovery Trigger -->
                     <div class="mb-4">
                         <label class="form-label fw-bold d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-key text-primary me-1"></i> API Key</span>
-                            <button type="button" id="btn-discover-models" class="btn btn-sm btn-outline-primary">
+                            <button type="button" id="btn-discover-models" class="btn btn-sm btn-outline-primary fw-bold rounded-pill px-3">
                                 <i class="bi bi-arrow-clockwise me-1"></i> Discover Models
                             </button>
                         </label>
@@ -73,11 +73,11 @@ AI Provider Settings | AI Meeting Assistant
                             <div class="text-danger small mt-1">{{ form.api_key.errors }}</div>
                         {% endif %}
                         {% if api_key_configured %}
-                            <div class="form-text text-muted">
+                            <div class="form-text" style="color: var(--text-muted);">
                                 <i class="bi bi-shield-lock-fill text-success"></i> Leave blank to keep your currently saved encrypted API key.
                             </div>
                         {% else %}
-                            <div class="form-text text-muted">Enter your provider API key. It will be encrypted with Fernet before saving.</div>
+                            <div class="form-text" style="color: var(--text-muted);">Enter your provider API key. It will be encrypted with Fernet before saving.</div>
                         {% endif %}
                     </div>
 
@@ -85,7 +85,7 @@ AI Provider Settings | AI Meeting Assistant
                     <div class="mb-4">
                         <label class="form-label fw-bold d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-box text-primary me-1"></i> AI Model</span>
-                            <button type="button" id="btn-validate-model" class="btn btn-sm btn-outline-success">
+                            <button type="button" id="btn-validate-model" class="btn btn-sm btn-outline-success fw-bold rounded-pill px-3">
                                 <i class="bi bi-shield-check me-1"></i> Validate Model
                             </button>
                         </label>
@@ -105,12 +105,12 @@ AI Provider Settings | AI Meeting Assistant
 
                         <!-- Custom Model ID input (shown if user selects 'Enter Custom Model ID...') -->
                         <div id="custom_model_container" class="mt-2 d-none">
-                            <label class="form-label small fw-bold text-secondary">Custom Model ID:</label>
+                            <label class="form-label small fw-bold" style="color: var(--text-secondary);">Custom Model ID:</label>
                             <input type="text" id="custom_model_input" class="form-control form-control-sm" placeholder="e.g., gemini-2.5-pro">
                         </div>
 
                         <!-- Live Validation Feedback Box -->
-                        <div id="model_status_container" class="p-3 mt-3 rounded-3 border bg-light d-none">
+                        <div id="model_status_container" class="p-3 mt-3 rounded-3 border d-none" style="background: var(--surface-subtle); border-color: var(--border) !important;">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <div id="model_status_badge">
                                     <span class="badge bg-secondary text-white px-3 py-2 rounded-pill">
@@ -119,10 +119,10 @@ AI Provider Settings | AI Meeting Assistant
                                 </div>
                                 <div id="model_meta_container" class="small d-flex flex-wrap gap-1"></div>
                             </div>
-                            <div id="model_status_message" class="small text-muted mb-0"></div>
+                            <div id="model_status_message" class="small mb-0" style="color: var(--text-muted);"></div>
                         </div>
 
-                        <div class="form-text text-muted mt-2">
+                        <div class="form-text mt-2" style="color: var(--text-muted);">
                             Only models verified for audio transcription and text generation are recommended.
                         </div>
                     </div>
@@ -142,8 +142,8 @@ AI Provider Settings | AI Meeting Assistant
 
         </div>
 
-        <div class="text-center text-muted small">
-            <i class="bi bi-lock-fill text-secondary"></i> All API keys are securely encrypted using Fernet symmetric encryption before database persistence.
+        <div class="text-center small" style="color: var(--text-muted);">
+            <i class="bi bi-lock-fill text-primary"></i> All API keys are securely encrypted using Fernet symmetric encryption before database persistence.
         </div>
 
     </div>
@@ -162,5 +162,5 @@ AI Provider Settings | AI Meeting Assistant
         currentProvider: "{{ current_provider|escapejs }}"
     };
 </script>
-<script src="{% static 'meeting/js/settings.js' %}?v=2.0"></script>
+<script src="{% static 'meeting/js/settings.js' %}?v=3.0"></script>
 {% endblock %}

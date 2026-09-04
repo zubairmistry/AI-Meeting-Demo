@@ -651,16 +651,40 @@ def validate_model_api(request):
                 status=400,
             )
 
-        # Selective live model validation
-        validation_result = ModelValidationService.validate_model(provider, model_id)
+        candidate_models = body_data.get("candidate_models")
+        if candidate_models is not None:
+            if isinstance(candidate_models, str):
+                try:
+                    candidate_models = json.loads(candidate_models)
+                except Exception:
+                    candidate_models = []
+            if not isinstance(candidate_models, list):
+                candidate_models = []
+        else:
+            # When candidate_models is omitted from the request payload (e.g. single-model API test),
+            # test only the specified single model.
+            candidate_models = [model_id]
 
+        # Selective live model validation with automatic candidate fallback
+        validation_result = ModelValidationService.validate_model_with_fallback(
+            provider,
+            model_id,
+            candidate_models=candidate_models,
+        )
+
+        details = validation_result.details or {}
         if validation_result.is_valid:
             return JsonResponse({
                 "success": True,
                 "data": {
                     "model_id": validation_result.model_id or model_id,
                     "status": validation_result.status.value,
+                    "stage": getattr(validation_result, "stage", "validation_success") or "validation_success",
                     "message": validation_result.message,
+                    "selected_model": details.get("selected_model", model_id),
+                    "verified_model": details.get("verified_model", validation_result.model_id or model_id),
+                    "fallback_used": details.get("fallback_used", False),
+                    "attempted_models": details.get("attempted_models", []),
                 },
                 "error": None,
             })
@@ -670,10 +694,17 @@ def validate_model_api(request):
                 "data": {
                     "model_id": validation_result.model_id or model_id,
                     "status": validation_result.status.value,
+                    "stage": getattr(validation_result, "stage", "validation_failed") or "validation_failed",
+                    "selected_model": details.get("selected_model", model_id),
+                    "verified_model": None,
+                    "fallback_used": details.get("fallback_used", False),
+                    "attempted_models": details.get("attempted_models", []),
                 },
                 "error": {
                     "code": validation_result.status.value,
+                    "stage": getattr(validation_result, "stage", "validation_failed") or "validation_failed",
                     "message": validation_result.message,
+                    "attempted_models": details.get("attempted_models", []),
                 },
             }, status=200)
 
