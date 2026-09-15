@@ -11,6 +11,12 @@ class AIAnalysisService:
         if provider is None:
             return None
 
+        if getattr(provider, "provider", "") == "claude":
+            raise NotImplementedError(
+                "Anthropic Claude does not natively support audio transcription. "
+                "Please select an audio-capable provider (e.g. Gemini) in AI Settings to transcribe media recordings."
+            )
+
         audio_file = None
         try:
             audio_file = provider.upload_audio(audio_path)

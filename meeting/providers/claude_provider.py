@@ -207,7 +207,18 @@ class ClaudeProvider(BaseAIProvider):
 
     def translate_error(self, exc: Exception) -> ValidationResult:
         """Normalizes Anthropic exceptions into structured ValidationResult."""
+        if isinstance(exc, NotImplementedError):
+            return ValidationResult(
+                is_valid=False,
+                status=ModelStatus.UNAVAILABLE,
+                message=str(exc),
+                model_id=self.model_name,
+            )
+
         err_str = str(exc)
+        if self.api_key and self.api_key in err_str:
+            err_str = err_str.replace(self.api_key, "[REDACTED]")
+
         status_code = getattr(exc, "status_code", None)
 
         if status_code == 401 or "authentication" in err_str.lower() or "api_key" in err_str.lower():

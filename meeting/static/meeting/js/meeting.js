@@ -1,5 +1,5 @@
 /* ==========================================================================
-   AI MEETING ASSISTANT — WORKSPACE & GLOBAL THEME CONTROLLER
+   AI MEETING ASSISTANT — WORKSPACE, ASYNC POLLING & GLOBAL THEME CONTROLLER
    ========================================================================== */
 
 (function () {
@@ -58,7 +58,6 @@
     }
 
     function initGlobalThemeSelector() {
-        // Toggle dropdowns for both authenticated and guest selectors
         const pairs = [
             { btn: document.getElementById("themeSelectorBtn"), menu: document.getElementById("themeDropdownMenu") },
             { btn: document.getElementById("themeSelectorBtnGuest"), menu: document.getElementById("themeDropdownMenuGuest") }
@@ -70,7 +69,6 @@
                     e.preventDefault();
                     e.stopPropagation();
                     const isOpen = menu.classList.contains("show");
-                    // Close all other menus
                     document.querySelectorAll(".theme-dropdown-menu").forEach(m => m.classList.remove("show"));
                     if (!isOpen) {
                         menu.classList.add("show");
@@ -79,7 +77,6 @@
             }
         });
 
-        // Theme option buttons click
         document.querySelectorAll(".theme-opt-btn").forEach((optBtn) => {
             optBtn.addEventListener("click", function (e) {
                 e.preventDefault();
@@ -90,7 +87,6 @@
             });
         });
 
-        // Close dropdown when clicking anywhere outside
         document.addEventListener("click", function (e) {
             document.querySelectorAll(".theme-dropdown-menu").forEach(menu => {
                 const wrapper = menu.closest(".theme-selector-wrapper");
@@ -100,12 +96,11 @@
             });
         });
 
-        // Initial application
         applyTheme(getSavedTheme());
     }
 
     /* ==========================================================================
-       2. WORKSPACE FILE SELECTION, DRAG & DROP AND PREVIEW
+       2. WORKSPACE CONSTANTS & HELPERS
        ========================================================================== */
     const ALLOWED_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".mp3", ".wav", ".m4a"];
     const MAX_SIZE_BYTES = 52428800; // 50 MB
@@ -118,6 +113,410 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
     }
 
+    function formatDurationSecs(seconds) {
+        if (seconds === null || seconds === undefined || isNaN(seconds)) return "—";
+        const totalSec = Math.max(0, Math.floor(Number(seconds)));
+        const hours = Math.floor(totalSec / 3600);
+        const minutes = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+
+        if (hours > 0) {
+            return `${String(hours).padStart(2, "0")} hr ${String(minutes).padStart(2, "0")} min ${String(secs).padStart(2, "0")} sec`;
+        } else if (minutes > 0) {
+            return `${String(minutes).padStart(2, "0")} min ${String(secs).padStart(2, "0")} sec`;
+        } else {
+            return `${String(secs).padStart(2, "0")} sec`;
+        }
+    }
+
+    function getFormattedTime() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, "0");
+        const m = String(now.getMinutes()).padStart(2, "0");
+        const s = String(now.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+    }
+
+    function getFormattedDate() {
+        const now = new Date();
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const day = String(now.getDate()).padStart(2, "0");
+        const month = months[now.getMonth()];
+        const year = now.getFullYear();
+        return `${day} ${month} ${year}`;
+    }
+
+    /* ==========================================================================
+       3. ASYNC STATE CONTROLLER & REAL-TIME POLLING ENGINE
+       ========================================================================== */
+    let isProcessing = false;
+    let activeMeetingId = null;
+    let pollingTimer = null;
+    let consecutiveNetworkErrors = 0;
+    let lastLoggedStage = null;
+
+    function stopPolling() {
+        if (pollingTimer) {
+            clearTimeout(pollingTimer);
+            pollingTimer = null;
+        }
+        activeMeetingId = null;
+    }
+
+    function appendActivityLog(message, iconClass = "bi-check-circle text-success") {
+        const stream = document.getElementById("activityLogStream");
+        if (!stream) return;
+
+        const emptyPlaceholder = document.getElementById("activityLogEmpty");
+        if (emptyPlaceholder) {
+            emptyPlaceholder.remove();
+        }
+
+        const entry = document.createElement("div");
+        entry.className = "d-flex align-items-start gap-2 activity-log-entry mb-1";
+        entry.innerHTML = `
+            <span class="text-muted small font-monospace">[${getFormattedTime()}]</span>
+            <i class="bi ${iconClass} mt-1"></i>
+            <span>${message}</span>
+        `;
+        stream.appendChild(entry);
+        stream.scrollTop = stream.scrollHeight;
+    }
+
+    function getStageDisplayName(stage) {
+        switch (stage) {
+            case "queued": return "Queued for processing";
+            case "extracting_audio": return "Extracting Audio (MP3 16kHz)...";
+            case "uploading_to_ai": return "Uploading Audio to Gemini...";
+            case "waiting_for_ai": return "Processing Audio with AI...";
+            case "transcribing": return "Synthesizing Verbatim Transcript...";
+            case "generating_summary": return "Synthesizing AI Summary Report...";
+            case "completed": return "Analysis Complete";
+            case "failed": return "Processing Failed";
+            default: return "Processing Meeting...";
+        }
+    }
+
+    function getStageLogMessage(stage) {
+        switch (stage) {
+            case "queued": return "Meeting queued in background worker";
+            case "extracting_audio": return "Extracting audio track (32kbps MP3 / 16kHz mono)";
+            case "uploading_to_ai": return "Uploading audio asset to Gemini API";
+            case "waiting_for_ai": return "Remote audio indexing in progress";
+            case "transcribing": return "Generating verbatim meeting transcript";
+            case "generating_summary": return "Synthesizing executive summary & action items";
+            case "completed": return "Processing complete! All insights ready.";
+            case "failed": return "Processing interrupted";
+            default: return `Stage transition: ${stage}`;
+        }
+    }
+
+    function updateStepperUI(stage, status) {
+        const stages = [
+            document.getElementById("stepperStage1"),
+            document.getElementById("stepperStage2"),
+            document.getElementById("stepperStage3"),
+            document.getElementById("stepperStage4"),
+            document.getElementById("stepperStage5"),
+            document.getElementById("stepperStage6"),
+            document.getElementById("stepperStage7"),
+            document.getElementById("stepperStage8")
+        ];
+        const connectors = [
+            document.getElementById("stepperConnector1"),
+            document.getElementById("stepperConnector2"),
+            document.getElementById("stepperConnector3"),
+            document.getElementById("stepperConnector4"),
+            document.getElementById("stepperConnector5"),
+            document.getElementById("stepperConnector6"),
+            document.getElementById("stepperConnector7")
+        ];
+
+        let activeIndex = 0; // 0-based
+        if (status === "completed" || stage === "completed") {
+            activeIndex = 7;
+        } else if (stage === "generating_summary") {
+            activeIndex = 5;
+        } else if (stage === "transcribing") {
+            activeIndex = 3;
+        } else if (stage === "waiting_for_ai" || stage === "uploading_to_ai") {
+            activeIndex = 3;
+        } else if (stage === "extracting_audio") {
+            activeIndex = 2;
+        } else if (stage === "queued") {
+            activeIndex = 1;
+        }
+
+        stages.forEach((node, idx) => {
+            if (!node) return;
+            node.classList.remove("completed", "active");
+            if (idx < activeIndex) {
+                node.classList.add("completed");
+            } else if (idx === activeIndex) {
+                if (status === "completed") {
+                    node.classList.add("completed", "active");
+                } else {
+                    node.classList.add("active");
+                }
+            }
+        });
+
+        connectors.forEach((conn, idx) => {
+            if (!conn) return;
+            conn.classList.remove("active");
+            if (idx < activeIndex) {
+                conn.classList.add("active");
+            }
+        });
+    }
+
+    function ensureTranscriptSection(transcriptText) {
+        let transcriptBox = document.getElementById("meetingTranscriptContent");
+        if (!transcriptBox) {
+            const container = document.getElementById("transcriptContainer");
+            if (!container) return;
+
+            container.innerHTML = `
+                <div id="sectionTranscript" class="meeting-card-3d mb-3">
+                    <div class="meeting-section-header">
+                        <div>
+                            <h3 class="meeting-section-title">
+                                <span class="step-num-badge">3</span>
+                                <span>Transcript (Live Preview)</span>
+                                <span class="badge px-3 py-1 fw-bold rounded-pill small ms-2" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid var(--primary-glow); font-size: 0.7rem;">Verbatim</span>
+                            </h3>
+                            <p class="meeting-section-subtitle">
+                                Full verbatim transcription synthesized from 16kHz audio
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" id="btnCopyTranscript" class="btn-action-pill">
+                                <i class="bi bi-clipboard"></i> Copy Transcript
+                            </button>
+                            <button type="button" id="btnDownloadTranscriptTxt" class="btn-action-pill">
+                                <i class="bi bi-download"></i> Download TXT
+                            </button>
+                        </div>
+                    </div>
+                    <div class="meeting-output-box">
+                        <pre id="meetingTranscriptContent" class="meeting-output-pre"></pre>
+                    </div>
+                </div>
+            `;
+            initActionButtons();
+            transcriptBox = document.getElementById("meetingTranscriptContent");
+        }
+
+        if (transcriptBox && transcriptText) {
+            transcriptBox.textContent = transcriptText;
+        }
+    }
+
+    function ensureReportSection(reportText) {
+        let reportBox = document.getElementById("meetingReportContent");
+        if (!reportBox) {
+            const container = document.getElementById("reportContainer");
+            if (!container) return;
+
+            container.innerHTML = `
+                <div id="sectionReport" class="meeting-card-3d mb-3">
+                    <div class="meeting-section-header">
+                        <div>
+                            <h3 class="meeting-section-title">
+                                <span class="step-num-badge">4</span>
+                                <span>AI Executive Summary</span>
+                                <span class="badge px-3 py-1 fw-bold rounded-pill small ms-2" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.7rem;">Synthesis Complete</span>
+                            </h3>
+                            <p class="meeting-section-subtitle">
+                                Executive summary, key takeaways, and action items
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" id="btnCopyReport" class="btn-action-pill">
+                                <i class="bi bi-clipboard"></i> Copy Summary
+                            </button>
+                            <button type="button" id="btnDownloadReportTxt" class="btn-action-pill">
+                                <i class="bi bi-download"></i> Download Report
+                            </button>
+                        </div>
+                    </div>
+                    <div class="meeting-output-box">
+                        <pre id="meetingReportContent" class="meeting-output-pre"></pre>
+                    </div>
+                </div>
+            `;
+            initActionButtons();
+            reportBox = document.getElementById("meetingReportContent");
+        }
+
+        if (reportBox && reportText) {
+            reportBox.textContent = reportText;
+        }
+    }
+
+    async function pollMeetingStatus(meetingId) {
+        if (!isProcessing || activeMeetingId !== meetingId) return;
+
+        try {
+            const response = await fetch(`/meeting/status/${meetingId}/`, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json"
+                }
+            });
+
+            if (response.status === 200) {
+                consecutiveNetworkErrors = 0;
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const data = result.data;
+                    const stage = data.stage;
+                    const status = data.status;
+                    const progress = data.progress_percentage || 0;
+
+                    // 1. Update Progress Bar & Stage Label
+                    const progressBar = document.getElementById("meetingProgressBar");
+                    const percentLabel = document.getElementById("processingPercentLabel");
+                    const stageLabel = document.getElementById("processingStageLabel");
+
+                    if (progressBar) {
+                        progressBar.style.width = `${progress}%`;
+                        progressBar.setAttribute("aria-valuenow", String(progress));
+                    }
+                    if (percentLabel) percentLabel.textContent = `${progress}%`;
+                    if (stageLabel) stageLabel.textContent = getStageDisplayName(stage);
+
+                    // 2. Update Stepper
+                    updateStepperUI(stage, status);
+
+                    // 3. Update Activity Log on Stage Change
+                    if (stage && stage !== lastLoggedStage) {
+                        appendActivityLog(getStageLogMessage(stage), "bi-arrow-right-circle text-primary");
+                        lastLoggedStage = stage;
+                    }
+
+                    // 4. Update Transcript if available
+                    if (data.has_transcript && data.transcript) {
+                        ensureTranscriptSection(data.transcript);
+                    }
+
+                    // 5. Update Report if available
+                    if (data.has_ai_report && data.ai_report) {
+                        ensureReportSection(data.ai_report);
+                    }
+
+                    // 6. Update Meeting Info in Right Sidebar
+                    if (data.duration && data.duration > 0) {
+                        const durationEl = document.getElementById("infoRuntimeDuration");
+                        if (durationEl) durationEl.textContent = formatDurationSecs(data.duration);
+                    }
+
+                    // 7. Check Terminal State
+                    if (status === "completed") {
+                        stopPolling();
+                        isProcessing = false;
+
+                        if (progressBar) {
+                            progressBar.style.width = "100%";
+                            progressBar.setAttribute("aria-valuenow", "100");
+                            progressBar.classList.remove("progress-bar-animated");
+                        }
+                        if (percentLabel) percentLabel.textContent = "100%";
+                        if (stageLabel) stageLabel.textContent = "Analysis Complete";
+
+                        const statusBadge = document.getElementById("processingStatusBadge");
+                        if (statusBadge) {
+                            statusBadge.textContent = "100% Completed";
+                            statusBadge.style.background = "rgba(16, 185, 129, 0.15)";
+                            statusBadge.style.color = "#10b981";
+                            statusBadge.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+                        }
+
+                        const infoStatus = document.getElementById("infoProcessingStatus");
+                        if (infoStatus) {
+                            infoStatus.textContent = "COMPLETED";
+                            infoStatus.className = "info-item-value text-success fw-bold";
+                        }
+
+                        appendActivityLog("Meeting processing completed successfully!", "bi-check2-all text-success");
+
+                        const analyzeBtn = document.getElementById("btnAnalyzeMeeting");
+                        if (analyzeBtn) {
+                            analyzeBtn.classList.remove("loading");
+                            analyzeBtn.disabled = false;
+                            analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                        }
+                        return;
+                    } else if (status === "failed") {
+                        stopPolling();
+                        isProcessing = false;
+
+                        if (progressBar) {
+                            progressBar.classList.remove("bg-primary", "progress-bar-animated");
+                            progressBar.classList.add("bg-danger");
+                        }
+                        if (stageLabel) stageLabel.textContent = "Processing Failed";
+
+                        const statusBadge = document.getElementById("processingStatusBadge");
+                        if (statusBadge) {
+                            statusBadge.textContent = "Failed";
+                            statusBadge.style.background = "rgba(239, 68, 68, 0.15)";
+                            statusBadge.style.color = "#ef4444";
+                            statusBadge.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+                        }
+
+                        const infoStatus = document.getElementById("infoProcessingStatus");
+                        if (infoStatus) {
+                            infoStatus.textContent = "FAILED";
+                            infoStatus.className = "info-item-value text-danger fw-bold";
+                        }
+
+                        const errMsg = data.error_message || "An error occurred during meeting analysis.";
+                        const alertBox = document.getElementById("fileValidationAlert");
+                        if (alertBox) {
+                            alertBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${errMsg}`;
+                            alertBox.classList.remove("d-none");
+                        }
+                        appendActivityLog(`Failed: ${errMsg}`, "bi-x-circle text-danger");
+
+                        const analyzeBtn = document.getElementById("btnAnalyzeMeeting");
+                        if (analyzeBtn) {
+                            analyzeBtn.classList.remove("loading");
+                            analyzeBtn.disabled = false;
+                            analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                        }
+                        return;
+                    }
+                }
+            } else if (response.status === 401 || response.status === 403) {
+                stopPolling();
+                isProcessing = false;
+                appendActivityLog("Authentication required. Please refresh or log in again.", "bi-lock text-warning");
+                return;
+            } else if (response.status === 404) {
+                stopPolling();
+                isProcessing = false;
+                appendActivityLog("Meeting task was not found.", "bi-exclamation-octagon text-danger");
+                return;
+            }
+        } catch (err) {
+            consecutiveNetworkErrors++;
+            console.warn("Status polling network retry:", err);
+            if (consecutiveNetworkErrors === 6) {
+                appendActivityLog("Network connectivity issue detected. Continuing to retry in background...", "bi-wifi-off text-warning");
+            }
+        }
+
+        // Schedule next poll interval (approx 2000 ms)
+        if (isProcessing && activeMeetingId === meetingId) {
+            pollingTimer = setTimeout(() => pollMeetingStatus(meetingId), 2000);
+        }
+    }
+
+    /* ==========================================================================
+       4. WORKSPACE FILE SELECTION, DRAG & DROP AND ASYNC SUBMISSION
+       ========================================================================== */
     function initFileUploadWorkspace() {
         const dropzone = document.getElementById("meetingDropzone");
         const fileInput = document.getElementById("meeting_file_input");
@@ -163,32 +562,35 @@
             const ext = "." + fileName.split(".").pop().toLowerCase();
 
             if (!ALLOWED_EXTENSIONS.includes(ext)) {
+                resetFilePreview(true);
                 showValidationMessage(
                     "Unsupported file format. Please upload MP4, MOV, AVI, MKV, MP3, or WAV."
                 );
-                fileInput.value = "";
-                resetFilePreview();
                 return;
             }
 
             if (file.size > MAX_SIZE_BYTES) {
+                resetFilePreview(true);
                 showValidationMessage(
                     `File size (${formatBytes(file.size)}) exceeds the demo limit of 50 MB.`
                 );
-                fileInput.value = "";
-                resetFilePreview();
                 return;
             }
 
             // Populate preview box
             if (previewName) previewName.textContent = fileName;
             if (previewSize) previewSize.textContent = formatBytes(file.size);
-            if (previewExt) previewExt.textContent = ext.replace(".", "").toUpperCase();
+            const cleanExt = ext.replace(".", "").toUpperCase();
+            if (previewExt) previewExt.textContent = cleanExt;
             if (previewStatus) {
                 previewStatus.textContent = "File ready to upload";
                 previewStatus.className = "small fw-bold text-success";
             }
             if (btnRemove) btnRemove.style.display = "inline-flex";
+
+            // Update Input Format in right sidebar
+            const infoFormat = document.getElementById("infoInputFormat");
+            if (infoFormat) infoFormat.textContent = cleanExt;
 
             // Inspect Duration via temporary audio element if possible
             if (previewDuration) {
@@ -229,7 +631,7 @@
             if (analyzeBtn) analyzeBtn.disabled = false;
         }
 
-        function resetFilePreview() {
+        function resetFilePreview(preserveAlert = false) {
             if (previewName) previewName.textContent = "No file selected";
             if (previewSize) previewSize.textContent = "—";
             if (previewExt) previewExt.textContent = "MP4";
@@ -244,7 +646,12 @@
                 audioPlayer.classList.add("d-none");
             }
             if (fileInput) fileInput.value = "";
-            hideValidationMessage();
+            const infoFormat = document.getElementById("infoInputFormat");
+            if (infoFormat) infoFormat.textContent = "MP4";
+            if (analyzeBtn) analyzeBtn.disabled = true;
+            if (!preserveAlert) {
+                hideValidationMessage();
+            }
         }
 
         // Browse Files button click
@@ -308,32 +715,135 @@
             });
         }
 
-        // Form Submit & Loading State (Non-blocking native POST submission)
+        // Asynchronous Form Submission (AJAX POST -> 202 Accepted -> Polling)
         if (uploadForm) {
-            uploadForm.addEventListener("submit", function (e) {
+            uploadForm.addEventListener("submit", async function (e) {
+                e.preventDefault();
+
+                if (isProcessing) return;
+
                 if (!fileInput.files || fileInput.files.length === 0) {
-                    e.preventDefault();
                     showValidationMessage("Please select an audio or video meeting recording before analyzing.");
                     return;
                 }
 
+                hideValidationMessage();
+                isProcessing = true;
+
                 if (analyzeBtn) {
-                    if (analyzeBtn.classList.contains("loading")) {
-                        e.preventDefault();
-                        return;
-                    }
                     analyzeBtn.classList.add("loading");
+                    analyzeBtn.disabled = true;
                     analyzeBtn.innerHTML = `
                         <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                         <span>Processing Meeting with AI...</span>
                     `;
+                }
+
+                // Initialize progress UI
+                const progressBar = document.getElementById("meetingProgressBar");
+                const percentLabel = document.getElementById("processingPercentLabel");
+                const stageLabel = document.getElementById("processingStageLabel");
+                const statusBadge = document.getElementById("processingStatusBadge");
+                const infoStatus = document.getElementById("infoProcessingStatus");
+                const infoLastUsed = document.getElementById("infoLastUsed");
+
+                if (progressBar) {
+                    progressBar.style.width = "10%";
+                    progressBar.setAttribute("aria-valuenow", "10");
+                    progressBar.className = "progress-bar bg-primary progress-bar-striped progress-bar-animated";
+                }
+                if (percentLabel) percentLabel.textContent = "10%";
+                if (stageLabel) stageLabel.textContent = "Uploading & Queuing Meeting...";
+                if (statusBadge) {
+                    statusBadge.textContent = "In Progress";
+                    statusBadge.style.background = "rgba(99, 102, 241, 0.15)";
+                    statusBadge.style.color = "var(--primary)";
+                    statusBadge.style.border = "1px solid var(--primary-glow)";
+                }
+                if (infoStatus) {
+                    infoStatus.textContent = "RUNNING";
+                    infoStatus.className = "info-item-value text-primary fw-bold";
+                }
+                if (infoLastUsed) {
+                    infoLastUsed.textContent = getFormattedDate();
+                }
+
+                updateStepperUI("queued", "processing");
+                lastLoggedStage = "queued";
+
+                // Clear previous activity log stream
+                const stream = document.getElementById("activityLogStream");
+                if (stream) stream.innerHTML = "";
+                appendActivityLog("Meeting uploaded. Starting background AI pipeline...", "bi-cloud-upload text-primary");
+
+                const formData = new FormData(uploadForm);
+
+                try {
+                    const response = await fetch("/meeting/analyze/", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    });
+
+                    if (response.status === 202) {
+                        const result = await response.json();
+                        if (result.success && result.data) {
+                            const meetingId = result.data.meeting_id;
+                            const taskId = result.data.task_id || "";
+                            activeMeetingId = meetingId;
+
+                            appendActivityLog(`Task registered (ID: ${taskId.substring(0, 8)}...). Polling status...`, "bi-play-circle text-primary");
+
+                            // Begin polling
+                            pollMeetingStatus(meetingId);
+                        } else {
+                            throw new Error(result.error ? result.error.message : "Unexpected response structure.");
+                        }
+                    } else {
+                        let errMessage = "Upload failed. Please check file and AI settings.";
+                        try {
+                            const errJson = await response.json();
+                            if (errJson.error && errJson.error.message) {
+                                errMessage = errJson.error.message;
+                            }
+                        } catch (pErr) {}
+
+                        showValidationMessage(errMessage);
+                        appendActivityLog(`Upload failed: ${errMessage}`, "bi-x-circle text-danger");
+
+                        isProcessing = false;
+                        if (analyzeBtn) {
+                            analyzeBtn.classList.remove("loading");
+                            analyzeBtn.disabled = false;
+                            analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                        }
+                        if (statusBadge) {
+                            statusBadge.textContent = "Ready";
+                            statusBadge.style.background = "rgba(125, 125, 125, 0.15)";
+                            statusBadge.style.color = "var(--text-muted)";
+                            statusBadge.style.border = "none";
+                        }
+                    }
+                } catch (netErr) {
+                    console.error("Analyze request error:", netErr);
+                    showValidationMessage("Network error while submitting meeting recording. Please check your connection.");
+                    appendActivityLog("Network connection error on upload.", "bi-wifi-off text-danger");
+
+                    isProcessing = false;
+                    if (analyzeBtn) {
+                        analyzeBtn.classList.remove("loading");
+                        analyzeBtn.disabled = false;
+                        analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                    }
                 }
             });
         }
     }
 
     /* ==========================================================================
-       3. COPY & DOWNLOAD ACTIONS
+       5. COPY & DOWNLOAD ACTIONS
        ========================================================================== */
     function fallbackCopyText(text, btnElement) {
         const textarea = document.createElement("textarea");
@@ -368,7 +878,7 @@
         const transcriptElement = document.getElementById("meetingTranscriptContent");
 
         if (btnCopyTranscript && transcriptElement) {
-            btnCopyTranscript.addEventListener("click", function () {
+            btnCopyTranscript.onclick = function () {
                 const text = transcriptElement.innerText || transcriptElement.textContent;
                 if (navigator.clipboard && window.isSecureContext) {
                     navigator.clipboard.writeText(text).then(() => {
@@ -379,7 +889,7 @@
                 } else {
                     fallbackCopyText(text, btnCopyTranscript);
                 }
-            });
+            };
         }
 
         // Copy Report
@@ -387,7 +897,7 @@
         const reportElement = document.getElementById("meetingReportContent");
 
         if (btnCopyReport && reportElement) {
-            btnCopyReport.addEventListener("click", function () {
+            btnCopyReport.onclick = function () {
                 const text = reportElement.innerText || reportElement.textContent;
                 if (navigator.clipboard && window.isSecureContext) {
                     navigator.clipboard.writeText(text).then(() => {
@@ -398,13 +908,13 @@
                 } else {
                     fallbackCopyText(text, btnCopyReport);
                 }
-            });
+            };
         }
 
         // Download Transcript TXT
         const btnDownloadTxt = document.getElementById("btnDownloadTranscriptTxt");
         if (btnDownloadTxt && transcriptElement) {
-            btnDownloadTxt.addEventListener("click", function () {
+            btnDownloadTxt.onclick = function () {
                 const text = transcriptElement.innerText || transcriptElement.textContent;
                 const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
                 const url = URL.createObjectURL(blob);
@@ -415,13 +925,13 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            });
+            };
         }
 
         // Download Executive Report TXT
         const btnDownloadReport = document.getElementById("btnDownloadReportTxt");
         if (btnDownloadReport && reportElement) {
-            btnDownloadReport.addEventListener("click", function () {
+            btnDownloadReport.onclick = function () {
                 const text = reportElement.innerText || reportElement.textContent;
                 const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
                 const url = URL.createObjectURL(blob);
@@ -432,17 +942,22 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            });
+            };
         }
 
         // Analyze Another Meeting (Quick Reset & Scroll)
         const btnAnalyzeAnother = document.getElementById("btnAnalyzeAnother");
         if (btnAnalyzeAnother) {
-            btnAnalyzeAnother.addEventListener("click", function () {
+            btnAnalyzeAnother.onclick = function () {
+                stopPolling();
+                isProcessing = false;
+
                 const uploadSection = document.getElementById("sectionUpload");
                 if (uploadSection) {
                     uploadSection.scrollIntoView({ behavior: "smooth", block: "start" });
                 }
+
+                // Reset file input & preview
                 const fileInput = document.getElementById("meeting_file_input");
                 if (fileInput) fileInput.value = "";
                 const previewName = document.getElementById("previewFileName");
@@ -456,7 +971,62 @@
                 }
                 const btnRemove = document.getElementById("btnRemoveFile");
                 if (btnRemove) btnRemove.style.display = "none";
-            });
+                const audioPlayer = document.getElementById("audioPreviewPlayer");
+                if (audioPlayer) {
+                    audioPlayer.src = "";
+                    audioPlayer.classList.add("d-none");
+                }
+
+                // Reset progress UI
+                const progressBar = document.getElementById("meetingProgressBar");
+                const percentLabel = document.getElementById("processingPercentLabel");
+                const stageLabel = document.getElementById("processingStageLabel");
+                const statusBadge = document.getElementById("processingStatusBadge");
+                const infoStatus = document.getElementById("infoProcessingStatus");
+
+                if (progressBar) {
+                    progressBar.style.width = "0%";
+                    progressBar.setAttribute("aria-valuenow", "0");
+                    progressBar.className = "progress-bar bg-primary progress-bar-striped progress-bar-animated";
+                }
+                if (percentLabel) percentLabel.textContent = "0%";
+                if (stageLabel) stageLabel.textContent = "Ready to process";
+                if (statusBadge) {
+                    statusBadge.textContent = "Ready";
+                    statusBadge.style.background = "rgba(125, 125, 125, 0.15)";
+                    statusBadge.style.color = "var(--text-muted)";
+                    statusBadge.style.border = "none";
+                }
+                if (infoStatus) {
+                    infoStatus.textContent = "READY";
+                    infoStatus.className = "info-item-value text-muted";
+                }
+
+                updateStepperUI("ready", "ready");
+
+                // Clear activity log
+                const stream = document.getElementById("activityLogStream");
+                if (stream) {
+                    stream.innerHTML = `
+                        <div id="activityLogEmpty" class="text-center pt-1" style="color: var(--text-muted);">
+                            <i class="bi bi-hourglass-split me-1"></i> Activity stream ready. Upload meeting to start pipeline.
+                        </div>
+                    `;
+                }
+
+                // Clear transcript & report containers
+                const transContainer = document.getElementById("transcriptContainer");
+                if (transContainer) transContainer.innerHTML = "";
+                const repContainer = document.getElementById("reportContainer");
+                if (repContainer) repContainer.innerHTML = "";
+
+                const analyzeBtn = document.getElementById("btnAnalyzeMeeting");
+                if (analyzeBtn) {
+                    analyzeBtn.classList.remove("loading");
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                }
+            };
         }
     }
 

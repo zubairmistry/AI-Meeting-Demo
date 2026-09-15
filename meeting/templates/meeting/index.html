@@ -279,72 +279,87 @@ AI Meeting Assistant | Enterprise AI Workspace
                         Sit back while AI processes your meeting...
                     </p>
                 </div>
-                <div>
+                <div id="processingBadgeContainer">
                     {% if report %}
-                        <span class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">100% Completed</span>
+                        <span id="processingStatusBadge" class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">100% Completed</span>
                     {% elif status %}
-                        <span class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid var(--primary-glow);">In Progress</span>
+                        <span id="processingStatusBadge" class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid var(--primary-glow);">In Progress</span>
                     {% else %}
-                        <span class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted);">Ready</span>
+                        <span id="processingStatusBadge" class="badge px-3 py-1 rounded-pill fw-bold" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted);">Ready</span>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- Real-time Progress Bar & Stage Indicator -->
+            <div id="processingProgressBarContainer" class="mb-3 px-1">
+                <div class="d-flex justify-content-between align-items-center mb-1 small">
+                    <span id="processingStageLabel" class="fw-bold" style="color: var(--text-main); font-size: 0.8rem;">
+                        {% if report %}Analysis Complete{% elif status %}{{ status }}{% else %}Ready to process{% endif %}
+                    </span>
+                    <span id="processingPercentLabel" class="fw-bold text-primary" style="font-size: 0.8rem;">
+                        {% if report %}100%{% elif status %}10%{% else %}0%{% endif %}
+                    </span>
+                </div>
+                <div class="progress" style="height: 6px; background: var(--border); border-radius: 999px;">
+                    <div id="meetingProgressBar" class="progress-bar bg-primary progress-bar-striped progress-bar-animated" role="progressbar" style="width: {% if report %}100%{% elif status %}10%{% else %}0%{% endif %}; transition: width 0.4s ease;" aria-valuenow="{% if report %}100{% elif status %}10{% else %}0{% endif %}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
             </div>
 
             <!-- 8-Stage Horizontal Pipeline Stepper -->
             <div class="meeting-stepper-container">
-                <div class="meeting-stepper">
+                <div class="meeting-stepper" id="meetingStepper">
 
                     <!-- Stage 1: Uploading -->
-                    <div class="stepper-stage {% if status %}completed{% endif %}">
+                    <div id="stepperStage1" class="stepper-stage {% if status %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-cloud-upload"></i></div>
                         <div class="stepper-stage-label">1. Uploading</div>
                     </div>
-                    <div class="stepper-connector {% if status %}active{% endif %}"></div>
+                    <div id="stepperConnector1" class="stepper-connector {% if status %}active{% endif %}"></div>
 
                     <!-- Stage 2: Pre-flight Validation -->
-                    <div class="stepper-stage {% if status %}completed{% endif %}">
+                    <div id="stepperStage2" class="stepper-stage {% if status %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-shield-check"></i></div>
                         <div class="stepper-stage-label">2. Pre-flight</div>
                     </div>
-                    <div class="stepper-connector {% if status %}active{% endif %}"></div>
+                    <div id="stepperConnector2" class="stepper-connector {% if status %}active{% endif %}"></div>
 
                     <!-- Stage 3: Audio Extraction -->
-                    <div class="stepper-stage {% if status %}completed{% endif %}">
+                    <div id="stepperStage3" class="stepper-stage {% if status %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-soundwave"></i></div>
                         <div class="stepper-stage-label">3. Extraction</div>
                     </div>
-                    <div class="stepper-connector {% if transcript %}active{% endif %}"></div>
+                    <div id="stepperConnector3" class="stepper-connector {% if transcript %}active{% endif %}"></div>
 
                     <!-- Stage 4: Transcription -->
-                    <div class="stepper-stage {% if transcript %}completed{% endif %}">
+                    <div id="stepperStage4" class="stepper-stage {% if transcript %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-file-text"></i></div>
                         <div class="stepper-stage-label">4. Transcription</div>
                     </div>
-                    <div class="stepper-connector {% if transcript %}active{% endif %}"></div>
+                    <div id="stepperConnector4" class="stepper-connector {% if transcript %}active{% endif %}"></div>
 
                     <!-- Stage 5: AI Analysis -->
-                    <div class="stepper-stage {% if report %}completed{% endif %}">
+                    <div id="stepperStage5" class="stepper-stage {% if report %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-cpu"></i></div>
                         <div class="stepper-stage-label">5. AI Analysis</div>
                     </div>
-                    <div class="stepper-connector {% if report %}active{% endif %}"></div>
+                    <div id="stepperConnector5" class="stepper-connector {% if report %}active{% endif %}"></div>
 
                     <!-- Stage 6: Report Generation -->
-                    <div class="stepper-stage {% if report %}completed{% endif %}">
+                    <div id="stepperStage6" class="stepper-stage {% if report %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-card-checklist"></i></div>
                         <div class="stepper-stage-label">6. Report</div>
                     </div>
-                    <div class="stepper-connector {% if report %}active{% endif %}"></div>
+                    <div id="stepperConnector6" class="stepper-connector {% if report %}active{% endif %}"></div>
 
                     <!-- Stage 7: Cleanup -->
-                    <div class="stepper-stage {% if report %}completed{% endif %}">
+                    <div id="stepperStage7" class="stepper-stage {% if report %}completed{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-trash3"></i></div>
                         <div class="stepper-stage-label">7. Cleanup</div>
                     </div>
-                    <div class="stepper-connector {% if report %}active{% endif %}"></div>
+                    <div id="stepperConnector7" class="stepper-connector {% if report %}active{% endif %}"></div>
 
                     <!-- Stage 8: Completed -->
-                    <div class="stepper-stage {% if transcript and report %}completed active{% endif %}">
+                    <div id="stepperStage8" class="stepper-stage {% if transcript and report %}completed active{% endif %}">
                         <div class="stepper-stage-node"><i class="bi bi-check2-all"></i></div>
                         <div class="stepper-stage-label">8. Completed</div>
                     </div>
@@ -358,14 +373,14 @@ AI Meeting Assistant | Enterprise AI Workspace
                     <span class="fw-bold small" style="color: var(--text-main); font-size: 0.82rem;"><i class="bi bi-terminal me-1 text-primary"></i> Live Activity Log</span>
                     <span class="badge small px-2 py-1 rounded-pill" style="background: rgba(125,125,125,0.15); color: var(--text-muted); font-size: 0.68rem;">Stream</span>
                 </div>
-                <div class="small p-2 rounded-2" style="background: var(--bg-page); color: var(--text-secondary); min-height: 48px; border: 1px solid var(--border-subtle); font-family: 'Inter', monospace; font-size: 0.78rem;">
+                <div id="activityLogStream" class="small p-2 rounded-2" style="background: var(--bg-page); color: var(--text-secondary); min-height: 48px; max-height: 140px; overflow-y: auto; border: 1px solid var(--border-subtle); font-family: 'Inter', monospace; font-size: 0.78rem;" aria-live="polite">
                     {% if status %}
-                        <div class="d-flex align-items-start gap-2">
+                        <div class="d-flex align-items-start gap-2 activity-log-entry">
                             <i class="bi bi-info-circle text-primary mt-1"></i>
                             <span>{{ status }}</span>
                         </div>
                     {% else %}
-                        <div class="text-center pt-1" style="color: var(--text-muted);">
+                        <div id="activityLogEmpty" class="text-center pt-1" style="color: var(--text-muted);">
                             <i class="bi bi-hourglass-split me-1"></i> Activity stream ready. Upload meeting to start pipeline.
                         </div>
                     {% endif %}
@@ -375,6 +390,7 @@ AI Meeting Assistant | Enterprise AI Workspace
         </div>
 
         <!-- SECTION 3 — TRANSCRIPT (LIVE PREVIEW) -->
+        <div id="transcriptContainer">
         {% if transcript %}
         <div id="sectionTranscript" class="meeting-card-3d mb-3">
 
@@ -405,8 +421,10 @@ AI Meeting Assistant | Enterprise AI Workspace
 
         </div>
         {% endif %}
+        </div>
 
         <!-- SECTION 4 — AI EXECUTIVE SUMMARY -->
+        <div id="reportContainer">
         {% if report %}
         <div id="sectionReport" class="meeting-card-3d mb-3">
 
@@ -437,6 +455,7 @@ AI Meeting Assistant | Enterprise AI Workspace
 
         </div>
         {% endif %}
+        </div>
 
     </div>
 
@@ -454,27 +473,27 @@ AI Meeting Assistant | Enterprise AI Workspace
             <!-- 1. Last Used -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-clock-history text-primary"></i> Last Used</span>
-                <span class="info-item-value">03 Sep 2026</span>
+                <span id="infoLastUsed" class="info-item-value">03 Sep 2026</span>
             </div>
             <!-- 2. Detected Language -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-translate text-primary"></i> Detected Language</span>
-                <span class="info-item-value">English</span>
+                <span id="infoDetectedLanguage" class="info-item-value">English</span>
             </div>
             <!-- 3. Input Format -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-filetype-mp4 text-primary"></i> Input Format</span>
-                <span class="info-item-value">MP4</span>
+                <span id="infoInputFormat" class="info-item-value">MP4</span>
             </div>
             <!-- 4. Runtime Duration -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-stopwatch text-primary"></i> Runtime Duration</span>
-                <span class="info-item-value">{% if transcript %}02 min 37 sec{% else %}—{% endif %}</span>
+                <span id="infoRuntimeDuration" class="info-item-value">{% if transcript %}02 min 37 sec{% else %}—{% endif %}</span>
             </div>
             <!-- 5. Processing Status -->
             <div class="info-item-row border-bottom-0 pb-0">
                 <span class="info-item-label"><i class="bi bi-check-circle-fill text-success"></i> Processing Status</span>
-                <span class="info-item-value text-success">{% if report %}COMPLETED{% elif status %}RUNNING{% else %}READY{% endif %}</span>
+                <span id="infoProcessingStatus" class="info-item-value {% if report %}text-success{% elif status %}text-primary{% else %}text-muted{% endif %}">{% if report %}COMPLETED{% elif status %}RUNNING{% else %}READY{% endif %}</span>
             </div>
         </div>
 

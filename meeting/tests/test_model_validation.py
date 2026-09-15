@@ -13,6 +13,7 @@ from meeting.providers.base_provider import (
     ValidationResult,
 )
 from meeting.services.model_validation_service import ModelValidationService
+from meeting.services.model_discovery_service import ModelDiscoveryService
 from meeting.providers.gemini_provider import GeminiProvider
 
 
@@ -32,7 +33,7 @@ class ConfigurableMockProvider(BaseAIProvider):
         return []
 
     def filter_compatible_models(self, models):
-        return models
+        return ModelDiscoveryService.filter_compatible_models(models)
 
     def validate_model_access(self, model_id):
         self.probed_models.append(model_id)

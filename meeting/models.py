@@ -96,6 +96,28 @@ class Meeting(models.Model):
         default="processing"
     )
 
+    stage = models.CharField(
+        max_length=50,
+        default="queued"
+    )
+
+    error_message = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    task_id = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True
+    )
+
+    gemini_file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )

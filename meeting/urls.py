@@ -34,6 +34,16 @@ urlpatterns = [
     ),
 
     path(
+        "meeting/analyze/",
+        views.analyze_meeting_api,
+        name="analyze_meeting_api",
+    ),
+    path(
+        "meeting/status/<int:meeting_id>/",
+        views.meeting_status_api,
+        name="meeting_status_api",
+    ),
+    path(
         "meeting/<int:meeting_id>/",
         views.meeting_detail,
         name="meeting_detail",

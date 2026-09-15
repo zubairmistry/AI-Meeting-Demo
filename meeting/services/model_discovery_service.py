@@ -114,7 +114,13 @@ class ModelDiscoveryService:
             raise TypeError(f"Expected BaseAIProvider instance, got {type(provider).__name__}")
 
         raw_models = provider.discover_models()
-        compatible = cls.filter_compatible_models(
-            raw_models, required_capabilities=required_capabilities
-        )
+        if required_capabilities is not None:
+            compatible = cls.filter_compatible_models(
+                raw_models, required_capabilities=required_capabilities
+            )
+        elif hasattr(provider, "filter_compatible_models"):
+            compatible = provider.filter_compatible_models(raw_models)
+        else:
+            compatible = cls.filter_compatible_models(raw_models)
+
         return cls.rank_compatible_models(compatible)

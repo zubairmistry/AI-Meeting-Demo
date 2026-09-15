@@ -99,7 +99,10 @@ class ModelValidationService:
             return models
 
         # Ensure only application-compatible models are processed
-        compatible_models = ModelDiscoveryService.filter_compatible_models(models)
+        if hasattr(provider, "filter_compatible_models"):
+            compatible_models = provider.filter_compatible_models(models)
+        else:
+            compatible_models = ModelDiscoveryService.filter_compatible_models(models)
 
         target_model_id = selected_model_id
         if not target_model_id:
@@ -183,6 +186,9 @@ class ModelValidationService:
         7. Generates executive meeting report via provider.generate_report() and verifies non-empty output.
         8. Cleans up local temporary audio file and directories.
 
+        For text-generation providers without native audio support (e.g. Claude):
+        Executes access probe followed by sample transcript report generation verification.
+
         Guarantees:
         - The selected model is set on the provider instance.
         - No persistent Meeting database record is created.
@@ -216,6 +222,39 @@ class ModelValidationService:
         if not access_result.is_valid:
             access_result.stage = "access_validation_failed"
             return access_result
+
+        # Capability-aware branch: text-generation reasoning providers (e.g. Claude)
+        is_text_only = getattr(provider, "provider", "") == "claude"
+        if is_text_only:
+            sample_transcript = (
+                "Speaker 1: Welcome to the quarterly planning meeting. "
+                "Speaker 2: We need to finalize the product roadmap and launch dates."
+            )
+            try:
+                report = provider.generate_report(sample_transcript)
+            except Exception as exc:
+                logger.warning("Report generation failed during E2E validation for model '%s': %s", clean_model_id, exc)
+                err_res = provider.translate_error(exc)
+                err_res.stage = "report_generation_failed"
+                err_res.model_id = clean_model_id
+                return err_res
+
+            if not report or not str(report).strip():
+                return ValidationResult(
+                    is_valid=False,
+                    status=ModelStatus.UNAVAILABLE,
+                    message=f"Model '{clean_model_id}' returned an empty executive summary for the sample meeting.",
+                    model_id=clean_model_id,
+                    stage="empty_report",
+                )
+
+            return ValidationResult(
+                is_valid=True,
+                status=ModelStatus.AVAILABLE,
+                message=f"Model '{clean_model_id}' is verified: successfully passed text reasoning and report generation validation.",
+                model_id=clean_model_id,
+                stage="validation_success",
+            )
 
         # 2. Resolve sample video path
         target_sample_path = sample_video_path or cls.get_sample_video_path()

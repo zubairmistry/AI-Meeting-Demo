@@ -120,6 +120,103 @@ class Step7ClaudeProviderTests(TestCase):
         self.provider.cleanup_audio(None)
 
 
+    def test_validate_model_access_without_api_key_returns_access_denied(self):
+        """Model validation probe without API key returns ACCESS_DENIED."""
+        prov = ClaudeProvider({"provider": "claude", "api_key": ""})
+        result = prov.validate_model_access("claude-3-5-sonnet-20241022")
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.status, ModelStatus.ACCESS_DENIED)
+
+    def test_validate_model_access_success(self):
+        """Model validation probe with valid mock client returns AVAILABLE."""
+        mock_client = MagicMock()
+        self.provider.client = mock_client
+        result = self.provider.validate_model_access("claude-3-5-sonnet-20241022")
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.status, ModelStatus.AVAILABLE)
+        mock_client.messages.create.assert_called_once_with(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=5,
+            messages=[{"role": "user", "content": "ping"}]
+        )
+
+    def test_quick_preflight_check(self):
+        """Quick preflight check calls validate_model_access with active model."""
+        mock_client = MagicMock()
+        self.provider.client = mock_client
+        result = self.provider.quick_preflight_check()
+        self.assertTrue(result.is_valid)
+        self.assertEqual(result.status, ModelStatus.AVAILABLE)
+
+    def test_filter_compatible_models_returns_text_generation_models(self):
+        """filter_compatible_models retains models with TEXT_GENERATION capability."""
+        m1 = ModelDescriptor(id="c1", display_name="C1", capabilities={ProviderCapability.TEXT_GENERATION})
+        m2 = ModelDescriptor(id="c2", display_name="C2", capabilities={ProviderCapability.AUDIO_TRANSCRIPTION})
+        res = self.provider.filter_compatible_models([m1, m2])
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].id, "c1")
+
+    def test_translate_error_various_status_codes(self):
+        """translate_error normalizes 401, 403, 404, 429, 529, and NotImplementedError."""
+        # 401 Auth
+        e401 = Exception("401 Unauthorized: Invalid API Key")
+        e401.status_code = 401
+        r401 = self.provider.translate_error(e401)
+        self.assertEqual(r401.status, ModelStatus.ACCESS_DENIED)
+
+        # 403 Permission
+        e403 = Exception("403 Forbidden: Permission denied")
+        e403.status_code = 403
+        r403 = self.provider.translate_error(e403)
+        self.assertEqual(r403.status, ModelStatus.ACCESS_DENIED)
+
+        # 404 Not Found
+        e404 = Exception("404 Not Found")
+        e404.status_code = 404
+        r404 = self.provider.translate_error(e404)
+        self.assertEqual(r404.status, ModelStatus.UNAVAILABLE)
+
+        # 429 Quota
+        e429_quota = Exception("429 Rate limit: credit balance is too low")
+        e429_quota.status_code = 429
+        r429_quota = self.provider.translate_error(e429_quota)
+        self.assertEqual(r429_quota.status, ModelStatus.QUOTA_EXCEEDED)
+
+        # 429 Rate limit
+        e429 = Exception("429 Too Many Requests")
+        e429.status_code = 429
+        r429 = self.provider.translate_error(e429)
+        self.assertEqual(r429.status, ModelStatus.RATE_LIMITED)
+
+        # 529 Overloaded
+        e529 = Exception("529 Overloaded")
+        e529.status_code = 529
+        r529 = self.provider.translate_error(e529)
+        self.assertEqual(r529.status, ModelStatus.TEMPORARILY_UNAVAILABLE)
+
+        # NotImplementedError
+        e_ni = NotImplementedError("Anthropic Claude does not support audio transcription.")
+        r_ni = self.provider.translate_error(e_ni)
+        self.assertEqual(r_ni.status, ModelStatus.UNAVAILABLE)
+        self.assertIn("does not support audio transcription", r_ni.message)
+
+    def test_translate_error_redacts_api_key(self):
+        """translate_error strips API key from error output to prevent secret leakage."""
+        secret_key = "test_claude_api_key_123"
+        e = Exception(f"Failed request with token {secret_key}")
+        res = self.provider.translate_error(e)
+        self.assertNotIn(secret_key, res.message)
+        self.assertIn("[REDACTED]", res.message)
+
+    def test_lazy_sdk_loading_missing_package_raises_runtime_error(self):
+        """_ensure_client raises clean RuntimeError when anthropic cannot be imported."""
+        prov = ClaudeProvider({"provider": "claude", "api_key": "test_key"})
+        with patch.dict("sys.modules", {"anthropic": None}):
+            with self.assertRaises(RuntimeError) as ctx:
+                prov._ensure_client()
+            self.assertIn("anthropic", str(ctx.exception).lower())
+
+
 class Step7OpenAIProviderTests(TestCase):
     """Detailed unit tests for OpenAIProvider."""
 
@@ -266,3 +363,108 @@ class Step7ProviderFactoryAndAJAXIntegrationTests(TestCase):
         self.assertIsInstance(provider, OpenAIProvider)
         self.assertEqual(provider.provider, "openai")
         self.assertEqual(provider.api_key, "openai_sk_test_456")
+
+    def test_claude_discover_models_api(self):
+        """AJAX endpoint discover-models returns Claude models with fallback catalog."""
+        self.client.force_login(self.user)
+        response = self.client.post(
+            self.discover_url,
+            data=json.dumps({"provider": "claude", "api_key": "test_key_123"}),
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        models = data["data"]["models"]
+        self.assertTrue(len(models) >= 3)
+        model_ids = [m["id"] for m in models]
+        self.assertIn("claude-3-5-sonnet-20241022", model_ids)
+
+    @patch("meeting.providers.claude_provider.ClaudeProvider._ensure_client")
+    def test_claude_validate_model_api_capability_aware(self, mock_ensure):
+        """AJAX endpoint validate-model performs capability-aware validation for Claude."""
+        self.client.force_login(self.user)
+        with patch("meeting.providers.claude_provider.ClaudeProvider.validate_model_access") as mock_val, \
+             patch("meeting.providers.claude_provider.ClaudeProvider.generate_report") as mock_rep:
+            mock_val.return_value = ValidationResult(is_valid=True, status=ModelStatus.AVAILABLE, message="OK")
+            mock_rep.return_value = "Executive Summary: Q3 Roadmap."
+
+            response = self.client.post(
+                self.validate_url,
+                data=json.dumps({
+                    "provider": "claude",
+                    "model_id": "claude-3-5-sonnet-20241022",
+                    "api_key": "test_key_123"
+                }),
+                content_type="application/json"
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data["success"])
+            self.assertEqual(data["data"]["status"], "AVAILABLE")
+            self.assertEqual(data["data"]["stage"], "validation_success")
+
+    def test_claude_meeting_pipeline_raw_audio_fails_with_clear_message(self):
+        """Meeting pipeline refuses raw audio processing with Claude and updates status with clear message."""
+        from meeting.models import Meeting
+        from meeting.services.async_task_service import AsyncTaskService
+
+        SettingsService.save_settings(
+            user=self.user,
+            provider="claude",
+            api_key="test_key_123",
+            model_name="claude-3-5-sonnet-20241022"
+        )
+        meeting = Meeting.objects.create(
+            user=self.user,
+            meeting_name="Claude Raw Audio Meeting",
+            provider="claude",
+            model_name="claude-3-5-sonnet-20241022",
+            duration=0.0,
+            file_size=1024,
+            status="processing"
+        )
+        task_id = AsyncTaskService.acquire_processing_lease(meeting.id, self.user)
+        self.assertIsNotNone(task_id)
+
+        # Run pipeline stepwise on raw audio file
+        success = AsyncTaskService.run_pipeline_stepwise(meeting.id, task_id, "dummy_media.mp4")
+        self.assertFalse(success)
+
+        meeting.refresh_from_db()
+        self.assertEqual(meeting.status, "failed")
+        self.assertIn("Anthropic Claude does not", meeting.error_message)
+
+    def test_claude_meeting_pipeline_with_existing_transcript_succeeds(self):
+        """Meeting pipeline succeeds with Claude when transcript already exists."""
+        from meeting.models import Meeting
+        from meeting.services.async_task_service import AsyncTaskService
+
+        SettingsService.save_settings(
+            user=self.user,
+            provider="claude",
+            api_key="test_key_123",
+            model_name="claude-3-5-sonnet-20241022"
+        )
+        meeting = Meeting.objects.create(
+            user=self.user,
+            meeting_name="Claude Pre-transcribed Meeting",
+            provider="claude",
+            model_name="claude-3-5-sonnet-20241022",
+            duration=15.0,
+            file_size=1024,
+            status="processing",
+            transcript="Speaker 1: Reviewing quarterly goals and metrics."
+        )
+        task_id = AsyncTaskService.acquire_processing_lease(meeting.id, self.user)
+        self.assertIsNotNone(task_id)
+
+        with patch("meeting.providers.claude_provider.ClaudeProvider.generate_report") as mock_report:
+            mock_report.return_value = "Executive Summary: Review of quarterly goals and metrics."
+            success = AsyncTaskService.run_pipeline_stepwise(meeting.id, task_id, "dummy_media.mp4")
+            self.assertTrue(success)
+
+            meeting.refresh_from_db()
+            self.assertEqual(meeting.status, "completed")
+            self.assertEqual(meeting.stage, "completed")
+            self.assertIn("Executive Summary", meeting.ai_report)

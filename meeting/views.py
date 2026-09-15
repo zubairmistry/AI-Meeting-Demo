@@ -5,7 +5,7 @@ import subprocess
 import traceback
 from datetime import datetime
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import FileSystemStorage
 from django.http import JsonResponse
@@ -27,6 +27,7 @@ from meeting.providers.registry import ProviderRegistry
 from meeting.providers.factory import ProviderFactory as BaseProviderFactory
 from meeting.services.model_discovery_service import ModelDiscoveryService
 from meeting.services.model_validation_service import ModelValidationService
+from meeting.services.async_task_service import AsyncTaskService
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def home(request):
                 status = "❌ Invalid file. Please upload only MP4, MOV, AVI, MKV, MP3 or WAV."
                 return render(request,"meeting/index.html",{"status": status})
 
-            max_upload_size = getattr(settings, "MAX_UPLOAD_SIZE", 52428800)
+            max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
             if uploaded_file.size > max_upload_size:
                 limit_mb = max_upload_size // (1024 * 1024)
                 actual_mb = round(uploaded_file.size / (1024 * 1024), 1)
@@ -199,7 +200,7 @@ def home(request):
                         "transcript": transcript,
                         "report": report,
                     }
-                )          
+                )
 
             status = f"File Saved Successfully : {filename}"
 
@@ -719,4 +720,231 @@ def validate_model_api(request):
                 },
             },
             status=500,
-        )          
+        )
+
+
+STAGE_PROGRESS_MAP = {
+    "queued": 10,
+    "extracting_audio": 25,
+    "uploading_to_ai": 40,
+    "waiting_for_ai": 55,
+    "transcribing": 70,
+    "generating_summary": 85,
+    "completed": 100,
+    "failed": 0,
+}
+
+
+@login_required(login_url="login")
+@require_POST
+def analyze_meeting_api(request):
+    """
+    Asynchronous AJAX endpoint to upload and initiate background meeting processing.
+    Returns immediate HTTP 202 Accepted with meeting_id, task_id, and stage: queued.
+    """
+    try:
+        if "meeting_file" not in request.FILES:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "MISSING_FILE",
+                        "message": "Please select a meeting file.",
+                    },
+                },
+                status=400,
+            )
+
+        uploaded_file = request.FILES["meeting_file"]
+
+        allowed_extensions = [
+            ".mp4",
+            ".mov",
+            ".avi",
+            ".mkv",
+            ".mp3",
+            ".wav",
+        ]
+        file_name = uploaded_file.name.lower()
+        if not any(file_name.endswith(ext) for ext in allowed_extensions):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "INVALID_FILE_TYPE",
+                        "message": "Invalid file. Please upload only MP4, MOV, AVI, MKV, MP3 or WAV.",
+                    },
+                },
+                status=400,
+            )
+
+        max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
+        if uploaded_file.size > max_upload_size:
+            limit_mb = max_upload_size // (1024 * 1024)
+            actual_mb = round(uploaded_file.size / (1024 * 1024), 1)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "FILE_TOO_LARGE",
+                        "message": f"File size ({actual_mb} MB) exceeds the demo limit of {limit_mb} MB. Please upload a shorter meeting clip.",
+                    },
+                },
+                status=400,
+            )
+
+        user_settings = SettingsService.get_settings(request.user)
+        if not user_settings or not user_settings.get("api_key"):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "NO_API_KEY",
+                        "message": "Please configure your AI Provider and API Key in Settings before analyzing meetings.",
+                    },
+                },
+                status=400,
+            )
+
+        # Preflight validation check on configured AI Provider
+        provider = ProviderFactory.get_provider(request.user)
+        if not provider:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "PROVIDER_NOT_CONFIGURED",
+                        "message": "Please configure your AI Provider and API Key in Settings before analyzing meetings.",
+                    },
+                },
+                status=400,
+            )
+
+        preflight = ModelValidationService.preflight_check(provider)
+        if not preflight.is_valid:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": preflight.status.value,
+                        "message": preflight.message,
+                    },
+                },
+                status=400,
+            )
+
+        fs = FileSystemStorage()
+        filename = fs.save(uploaded_file.name, uploaded_file)
+        filepath = fs.path(filename)
+
+        meeting = Meeting.objects.create(
+            user=request.user,
+            meeting_name=filename,
+            original_file=filename,
+            audio_file="",
+            transcript_file="",
+            provider=user_settings.get("provider", "gemini"),
+            model_name=user_settings.get("model_name", "gemini-2.5-flash"),
+            meeting_type="",
+            transcript="",
+            ai_report="",
+            duration=0.0,
+            file_size=uploaded_file.size,
+            status="processing",
+            stage="queued",
+        )
+
+        task_id = AsyncTaskService.acquire_processing_lease(meeting.id, user=request.user)
+        if not task_id:
+            logger.error("Failed to acquire processing lease for new meeting %d", meeting.id)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "LEASE_ACQUISITION_FAILED",
+                        "message": "Could not start background processing task.",
+                    },
+                },
+                status=500,
+            )
+
+        # Dispatch background processing task via bounded ThreadPoolExecutor
+        executor = AsyncTaskService.get_executor()
+        executor.submit(
+            AsyncTaskService.run_pipeline_stepwise,
+            meeting.id,
+            task_id,
+            filepath,
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "data": {
+                    "meeting_id": meeting.id,
+                    "task_id": task_id,
+                    "status": "processing",
+                    "stage": "queued",
+                    "message": "Meeting uploaded successfully. Processing started in background.",
+                },
+                "error": None,
+            },
+            status=202,
+        )
+
+    except Exception as exc:
+        logger.exception("Error in analyze_meeting_api: %s", exc)
+        return JsonResponse(
+            {
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "SERVER_ERROR",
+                    "message": f"An error occurred while initiating analysis: {str(exc)[:120]}",
+                },
+            },
+            status=500,
+        )
+
+
+@login_required(login_url="login")
+def meeting_status_api(request, meeting_id):
+    """
+    AJAX polling endpoint to retrieve durable meeting processing status and checkpoints.
+    Scoped strictly to the authenticated user.
+    """
+    meeting = get_object_or_404(Meeting, id=meeting_id, user=request.user)
+
+    if meeting.status == "completed":
+        progress_pct = 100
+    elif meeting.status == "failed":
+        progress_pct = 0
+    else:
+        progress_pct = STAGE_PROGRESS_MAP.get(meeting.stage, 10)
+
+    return JsonResponse(
+        {
+            "success": True,
+            "data": {
+                "meeting_id": meeting.id,
+                "task_id": meeting.task_id,
+                "status": meeting.status,
+                "stage": meeting.stage,
+                "progress_percentage": progress_pct,
+                "duration": meeting.duration,
+                "has_transcript": bool(meeting.transcript),
+                "transcript": meeting.transcript if meeting.transcript else "",
+                "has_ai_report": bool(meeting.ai_report),
+                "ai_report": meeting.ai_report if meeting.ai_report else "",
+                "error_message": meeting.error_message,
+            },
+            "error": None,
+        }
+    )

@@ -1,4 +1,5 @@
 import os
+import re
 import wave
 import subprocess
 import shutil
@@ -43,48 +44,59 @@ class AudioService:
     @classmethod
     def extract_audio(cls, input_path, output_path=None):
         """
-        Extracts 16kHz mono PCM 16-bit WAV audio from input media file using FFmpeg.
-        If input_path is already a valid WAV file, returns it directly without redundant conversion.
+        Extracts 16kHz mono 32kbps MP3 audio (via libmp3lame) from input media file using FFmpeg.
+        If input_path is already a valid MP3 file and no output_path is specified, returns it directly.
+        If output_path explicitly ends with .wav, extracts as 16kHz mono PCM 16-bit WAV for backward compatibility.
         Guarantees input_path != output_path to prevent FFmpeg self-overwrite collisions.
         """
         base, ext = os.path.splitext(input_path)
+        ext_lower = ext.lower()
 
-        # If already a valid PCM WAV file, return directly
-        if ext.lower() == ".wav":
-            try:
-                with wave.open(input_path, "rb") as audio:
-                    if audio.getframerate() > 0 and audio.getnframes() > 0:
-                        return input_path
-            except Exception:
-                pass
+        # If already an MP3 file and no custom output path requested, return directly
+        if ext_lower == ".mp3" and not output_path:
+            return input_path
 
         if not output_path:
-            if ext.lower() == ".wav":
-                output_path = f"{base}_extracted.wav"
-            else:
-                output_path = f"{base}.wav"
+            output_path = f"{base}.mp3"
 
         # Prevent input and output being the same file
         if os.path.abspath(input_path) == os.path.abspath(output_path):
-            output_path = f"{base}_extracted.wav"
+            if output_path.lower().endswith(".wav"):
+                output_path = f"{base}_extracted.wav"
+            else:
+                output_path = f"{base}_extracted.mp3"
 
+        out_ext = os.path.splitext(output_path)[1].lower()
         ffmpeg_cmd = cls.get_ffmpeg_path()
 
-        subprocess.run(
-            [
+        if out_ext == ".wav":
+            # Backward-compatible WAV extraction when .wav is explicitly requested
+            ffmpeg_args = [
                 ffmpeg_cmd,
                 "-y",
-                "-i",
-                input_path,
+                "-i", input_path,
                 "-vn",
-                "-acodec",
-                "pcm_s16le",
-                "-ar",
-                "16000",
-                "-ac",
-                "1",
+                "-acodec", "pcm_s16le",
+                "-ar", "16000",
+                "-ac", "1",
                 output_path,
-            ],
+            ]
+        else:
+            # Production MP3 extraction: 32kbps mono 16kHz libmp3lame
+            ffmpeg_args = [
+                ffmpeg_cmd,
+                "-y",
+                "-i", input_path,
+                "-vn",
+                "-acodec", "libmp3lame",
+                "-b:a", "32k",
+                "-ar", "16000",
+                "-ac", "1",
+                output_path,
+            ]
+
+        subprocess.run(
+            ffmpeg_args,
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -92,24 +104,57 @@ class AudioService:
 
         return output_path
 
-    @staticmethod
-    def get_audio_info(audio_path):
+    @classmethod
+    def get_audio_info(cls, audio_path):
         """
-        Inspects the WAV file and returns metadata dictionary including duration.
+        Inspects the audio file (MP3 or WAV) and returns metadata dictionary including duration.
         """
-        with wave.open(audio_path, "rb") as audio:
-            channels = audio.getnchannels()
-            sample_width = audio.getsampwidth()
-            sample_rate = audio.getframerate()
-            total_frames = audio.getnframes()
-            duration_seconds = (
-                round(total_frames / sample_rate, 2) if sample_rate else 0.0
-            )
+        duration_seconds = 0.0
+        sample_rate = 16000
+        channels = 1
+        sample_width = 2
+        total_frames = 0
 
-            return {
-                "channels": channels,
-                "sample_width": sample_width,
-                "sample_rate": sample_rate,
-                "total_frames": total_frames,
-                "duration_seconds": duration_seconds,
-            }
+        # Attempt wave.open for WAV files
+        try:
+            with wave.open(audio_path, "rb") as audio:
+                channels = audio.getnchannels()
+                sample_width = audio.getsampwidth()
+                sample_rate = audio.getframerate()
+                total_frames = audio.getnframes()
+                duration_seconds = round(total_frames / sample_rate, 2) if sample_rate else 0.0
+                return {
+                    "channels": channels,
+                    "sample_width": sample_width,
+                    "sample_rate": sample_rate,
+                    "total_frames": total_frames,
+                    "duration_seconds": duration_seconds,
+                }
+        except Exception:
+            pass
+
+        # For MP3 or non-WAV media, inspect duration via FFmpeg
+        try:
+            ffmpeg_cmd = cls.get_ffmpeg_path()
+            res = subprocess.run(
+                [ffmpeg_cmd, "-i", audio_path],
+                capture_output=True,
+                text=True,
+                errors="replace"
+            )
+            match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", res.stderr)
+            if match:
+                hours = float(match.group(1))
+                minutes = float(match.group(2))
+                seconds = float(match.group(3))
+                duration_seconds = round(hours * 3600 + minutes * 60 + seconds, 2)
+        except Exception:
+            pass
+
+        return {
+            "channels": channels,
+            "sample_width": sample_width,
+            "sample_rate": sample_rate,
+            "total_frames": total_frames,
+            "duration_seconds": duration_seconds,
+        }

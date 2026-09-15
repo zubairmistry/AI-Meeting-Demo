@@ -217,7 +217,7 @@ class MultiProviderTests(TestCase):
     # -------------------------------------------------------------
 
     def test_ajax_discovery_endpoint_behavior_for_claude(self):
-        """AJAX discovery executes for Claude and correctly reflects its capability profile."""
+        """AJAX discovery executes for Claude and returns compatible text-generation models."""
         self.client.force_login(self.user)
         response = self.client.post(
             self.discover_url,
@@ -228,9 +228,10 @@ class MultiProviderTests(TestCase):
         data = response.json()
         self.assertTrue(data["success"])
         self.assertIsNone(data["error"])
-        # Because Claude lacks AUDIO_TRANSCRIPTION, meeting filter yields 0 full-flow models
         models = data["data"]["models"]
-        self.assertEqual(len(models), 0)
+        self.assertEqual(len(models), 3)
+        model_ids = [m["id"] for m in models]
+        self.assertIn("claude-3-5-sonnet-20241022", model_ids)
 
     def test_ajax_discovery_endpoint_works_for_openai(self):
         """AJAX discovery returns compatible models for OpenAI provider."""
