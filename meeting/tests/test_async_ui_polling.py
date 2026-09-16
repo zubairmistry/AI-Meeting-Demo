@@ -196,3 +196,65 @@ class AsyncUiPollingIntegrationTests(TestCase):
         self.assertIn("resetFilePreview(true);", js_content)
         self.assertIn("Unsupported file format.", js_content)
         self.assertIn("exceeds the demo limit of 50 MB.", js_content)
+
+    def test_meeting_detail_renders_polling_script_when_processing(self):
+        """
+        Verify that meeting_detail.html renders the status polling JavaScript block
+        when meeting.status is 'processing'.
+        """
+        meeting = Meeting.objects.create(
+            user=self.user,
+            meeting_name="Active Detail Meeting",
+            original_file="active.mp4",
+            status="processing",
+            stage="transcribing",
+            duration=45.0,
+            file_size=1024,
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("meeting_detail", kwargs={"meeting_id": meeting.id}))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+
+        self.assertIn("startDetailStatusPolling", content)
+        self.assertIn(f"const detailMeetingId = {meeting.id};", content)
+        self.assertIn("`/meeting/status/${detailMeetingId}/`", content)
+        self.assertIn("window.location.reload()", content)
+
+    def test_meeting_detail_omits_polling_script_when_completed_or_failed(self):
+        """
+        Verify that meeting_detail.html omits the status polling JavaScript block
+        when meeting is completed or failed.
+        """
+        completed_meeting = Meeting.objects.create(
+            user=self.user,
+            meeting_name="Completed Detail Meeting",
+            original_file="completed.mp4",
+            status="completed",
+            stage="completed",
+            transcript="Full transcript",
+            ai_report="Full report",
+            duration=45.0,
+            file_size=1024,
+        )
+        failed_meeting = Meeting.objects.create(
+            user=self.user,
+            meeting_name="Failed Detail Meeting",
+            original_file="failed.mp4",
+            status="failed",
+            stage="failed",
+            error_message="Test error",
+            duration=45.0,
+            file_size=1024,
+        )
+        self.client.force_login(self.user)
+
+        # Completed meeting
+        resp_completed = self.client.get(reverse("meeting_detail", kwargs={"meeting_id": completed_meeting.id}))
+        self.assertEqual(resp_completed.status_code, 200)
+        self.assertNotIn("startDetailStatusPolling", resp_completed.content.decode("utf-8"))
+
+        # Failed meeting
+        resp_failed = self.client.get(reverse("meeting_detail", kwargs={"meeting_id": failed_meeting.id}))
+        self.assertEqual(resp_failed.status_code, 200)
+        self.assertNotIn("startDetailStatusPolling", resp_failed.content.decode("utf-8"))

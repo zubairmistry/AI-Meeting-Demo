@@ -179,6 +179,58 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
+
+    {% if meeting.status == "processing" %}
+    // Auto-poll status when meeting is in processing state until terminal completion or failure
+    let detailPollTimer = null;
+    let consecutivePollErrors = 0;
+    const detailMeetingId = {{ meeting.id }};
+
+    function startDetailStatusPolling() {
+        if (detailPollTimer) return;
+
+        detailPollTimer = setInterval(async function () {
+            try {
+                const response = await fetch(`/meeting/status/${detailMeetingId}/`, {
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "application/json"
+                    }
+                });
+
+                if (response.status === 200) {
+                    consecutivePollErrors = 0;
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        const status = result.data.status;
+                        if (status === "completed" || status === "failed") {
+                            clearInterval(detailPollTimer);
+                            detailPollTimer = null;
+                            window.location.reload();
+                        }
+                    }
+                } else if (response.status === 401 || response.status === 403 || response.status === 404) {
+                    clearInterval(detailPollTimer);
+                    detailPollTimer = null;
+                } else {
+                    consecutivePollErrors++;
+                    if (consecutivePollErrors >= 10) {
+                        clearInterval(detailPollTimer);
+                        detailPollTimer = null;
+                    }
+                }
+            } catch (err) {
+                consecutivePollErrors++;
+                if (consecutivePollErrors >= 10) {
+                    clearInterval(detailPollTimer);
+                    detailPollTimer = null;
+                }
+            }
+        }, 2000);
+    }
+
+    startDetailStatusPolling();
+    {% endif %}
 });
 </script>
 {% endblock %}
