@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
         let badgeHtml = "";
         switch (status) {
             case "AVAILABLE":
-                badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-patch-check-fill me-1"></i> E2E Verified & Ready</span>';
+                badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-patch-check-fill me-1"></i> Model Verified & Accessible</span>';
                 break;
             case "FALLBACK_VERIFIED":
                 badgeHtml = '<span class="badge bg-success text-white px-3 py-2 rounded-pill"><i class="bi bi-arrow-repeat me-1"></i> Fallback Model Verified & Selected</span>';
@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 badgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-pause-circle me-1"></i> Temporarily Unavailable / Busy</span>';
                 break;
             case "VALIDATING":
-                badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Validating & Testing Sample Meeting...</span>';
+                badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Validating Model Access...</span>';
                 break;
             case "DISCOVERING":
                 badgeHtml = '<span class="badge bg-primary text-white px-3 py-2 rounded-pill"><span class="spinner-border spinner-border-sm me-1" role="status"></span> Discovering Compatible Models...</span>';
@@ -270,11 +270,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (btnDiscover) {
             btnDiscover.disabled = true;
         }
-        setValidationStatus("VALIDATING", `Validating access & testing full meeting workflow for '${modelId}' on sample video...`);
-
-        const candidateIds = (Array.isArray(discoveredModels) && discoveredModels.length > 0)
-            ? discoveredModels.map((m) => m.id)
-            : [];
+        setValidationStatus("VALIDATING", `Validating access for '${modelId}'...`);
 
         try {
             const response = await fetch(validateUrl, {
@@ -287,7 +283,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     provider: provider,
                     model_id: modelId,
                     api_key: apiKey,
-                    candidate_models: candidateIds,
                 }),
             });
 
@@ -310,7 +305,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 } else {
                     setValidationStatus(
                         result.data.status || "AVAILABLE",
-                        result.data.message || `Model '${modelId}' passed full end-to-end meeting transcription and summary validation!`,
+                        result.data.message || `Model '${modelId}' verified and accessible.`,
                         selectedModelObj
                     );
                 }
@@ -319,12 +314,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (isAllFailed) {
                     setValidationStatus(
                         "ALL_MODELS_FAILED",
-                        result.error?.message || "No discovered model passed the end-to-end meeting validation.",
+                        result.error?.message || "Model validation failed for all candidates.",
                         selectedModelObj
                     );
                 } else {
                     const errCode = result.error?.code || result.data?.status || "UNAVAILABLE";
-                    const errMsg = result.error?.message || `E2E validation failed for '${modelId}'.`;
+                    const errMsg = result.error?.message || `Validation failed for '${modelId}'.`;
                     setValidationStatus(errCode, errMsg, selectedModelObj);
                 }
             }

@@ -1,7 +1,4 @@
-"""
-Unit tests for ModelValidationService and pre-flight health checks.
-"""
-
+from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 
 from meeting.providers.base_provider import (
@@ -15,6 +12,7 @@ from meeting.providers.base_provider import (
 from meeting.services.model_validation_service import ModelValidationService
 from meeting.services.model_discovery_service import ModelDiscoveryService
 from meeting.providers.gemini_provider import GeminiProvider
+from meeting.providers.claude_provider import ClaudeProvider
 
 
 class ConfigurableMockProvider(BaseAIProvider):
@@ -307,3 +305,59 @@ class ModelValidationServiceTests(SimpleTestCase):
         e_503 = FakeAPIError(503, "UNAVAILABLE: high demand")
         res_503 = provider.translate_error(e_503)
         self.assertEqual(res_503.status, ModelStatus.TEMPORARILY_UNAVAILABLE)
+
+    def test_lightweight_validation_does_not_execute_audio_or_report(self):
+        """Verify lightweight validate_model only calls validate_model_access and never audio/report methods."""
+        provider = ConfigurableMockProvider()
+        with patch("meeting.services.audio_service.AudioService.extract_audio") as mock_extract:
+            result = ModelValidationService.validate_model(provider, "test-model-fast")
+            self.assertTrue(result.is_valid)
+            self.assertEqual(result.status, ModelStatus.AVAILABLE)
+            self.assertEqual(result.stage, "validation_success")
+            self.assertEqual(provider.probed_models, ["test-model-fast"])
+            mock_extract.assert_not_called()
+
+    def test_gemini_lightweight_validation_success(self):
+        """Test GeminiProvider.validate_model_access with mock client."""
+        provider = GeminiProvider({"provider": "gemini", "api_key": "test_gemini_key", "model_name": "gemini-2.5-flash"})
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.text = "ping"
+        mock_client.models.generate_content.return_value = mock_resp
+        provider.client = mock_client
+
+        res = ModelValidationService.validate_model(provider, "gemini-2.5-flash")
+        self.assertTrue(res.is_valid)
+        self.assertEqual(res.status, ModelStatus.AVAILABLE)
+        self.assertEqual(res.model_id, "gemini-2.5-flash")
+        mock_client.models.generate_content.assert_called_once_with(model="gemini-2.5-flash", contents="ping")
+
+    def test_claude_lightweight_validation_success(self):
+        """Test ClaudeProvider.validate_model_access with mock client."""
+        provider = ClaudeProvider({"provider": "claude", "api_key": "test_claude_key", "model_name": "claude-3-5-sonnet-20241022"})
+        mock_client = MagicMock()
+        mock_msg = MagicMock()
+        mock_client.messages.create.return_value = mock_msg
+        provider.client = mock_client
+
+        res = ModelValidationService.validate_model(provider, "claude-3-5-sonnet-20241022")
+        self.assertTrue(res.is_valid)
+        self.assertEqual(res.status, ModelStatus.AVAILABLE)
+        self.assertEqual(res.model_id, "claude-3-5-sonnet-20241022")
+        mock_client.messages.create.assert_called_once_with(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=5,
+            messages=[{"role": "user", "content": "ping"}]
+        )
+
+    def test_claude_lightweight_validation_without_api_key(self):
+        """Test ClaudeProvider.validate_model_access without API key returns ACCESS_DENIED."""
+        provider = ClaudeProvider({"provider": "claude", "api_key": ""})
+        res = ModelValidationService.validate_model(provider, "claude-3-5-sonnet-20241022")
+        self.assertFalse(res.is_valid)
+        self.assertEqual(res.status, ModelStatus.ACCESS_DENIED)
+
+    def test_e2e_and_fallback_methods_remain_available(self):
+        """Verify that validate_model_e2e and validate_model_with_fallback remain available on ModelValidationService."""
+        self.assertTrue(callable(getattr(ModelValidationService, "validate_model_e2e", None)))
+        self.assertTrue(callable(getattr(ModelValidationService, "validate_model_with_fallback", None)))

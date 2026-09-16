@@ -47,6 +47,7 @@ class ModelValidationService:
                 status=ModelStatus.UNKNOWN,
                 message=f"Invalid provider: expected BaseAIProvider, got {type(provider).__name__}",
                 model_id=model_id or "",
+                stage="access_validation_failed",
             )
 
         if not model_id or not isinstance(model_id, str) or not model_id.strip():
@@ -55,14 +56,25 @@ class ModelValidationService:
                 status=ModelStatus.UNAVAILABLE,
                 message="Model ID cannot be empty.",
                 model_id="",
+                stage="access_validation_failed",
             )
 
         clean_model_id = model_id.strip()
         try:
-            return provider.validate_model_access(clean_model_id)
+            res = provider.validate_model_access(clean_model_id)
+            if not getattr(res, "stage", None):
+                res.stage = "validation_success" if res.is_valid else "access_validation_failed"
+            if not getattr(res, "model_id", None):
+                res.model_id = clean_model_id
+            return res
         except Exception as exc:
             logger.warning("Unhandled exception during model validation for '%s': %s", clean_model_id, exc)
-            return provider.translate_error(exc)
+            err_res = provider.translate_error(exc)
+            if not getattr(err_res, "stage", None):
+                err_res.stage = "access_validation_failed"
+            if not getattr(err_res, "model_id", None):
+                err_res.model_id = clean_model_id
+            return err_res
 
     @classmethod
     def validate_models(

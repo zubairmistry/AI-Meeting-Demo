@@ -8,7 +8,7 @@ from datetime import datetime
 from django.conf import settings as django_settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.files.storage import FileSystemStorage
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -287,6 +287,7 @@ def settings(request):
 
 @login_required(login_url="login")
 def dashboard(request):
+    AsyncTaskService.check_and_reap_stale_tasks_for_user(request.user)
 
     meetings = Meeting.objects.filter(
         user=request.user
@@ -424,6 +425,7 @@ def logout_view(request):
 
 @login_required(login_url="login")
 def meeting_detail(request, meeting_id):
+    AsyncTaskService.check_and_reap_stale_task(meeting_id)
 
     meeting = get_object_or_404(
         Meeting,
@@ -652,6 +654,11 @@ def validate_model_api(request):
                 status=400,
             )
 
+        # Check if deep E2E validation or multi-candidate fallback was requested
+        deep_validate = body_data.get("deep_validate", False)
+        if isinstance(deep_validate, str):
+            deep_validate = deep_validate.lower() in ("true", "1", "yes")
+
         candidate_models = body_data.get("candidate_models")
         if candidate_models is not None:
             if isinstance(candidate_models, str):
@@ -661,31 +668,55 @@ def validate_model_api(request):
                     candidate_models = []
             if not isinstance(candidate_models, list):
                 candidate_models = []
-        else:
-            # When candidate_models is omitted from the request payload (e.g. single-model API test),
-            # test only the specified single model.
-            candidate_models = [model_id]
 
-        # Selective live model validation with automatic candidate fallback
-        validation_result = ModelValidationService.validate_model_with_fallback(
-            provider,
-            model_id,
-            candidate_models=candidate_models,
+        has_multiple_candidates = bool(
+            candidate_models and (len(candidate_models) > 1 or (len(candidate_models) == 1 and candidate_models[0] != model_id))
         )
 
-        details = validation_result.details or {}
+        if deep_validate or has_multiple_candidates:
+            if not candidate_models:
+                candidate_models = [model_id]
+
+            # Selective live model validation with automatic candidate fallback
+            validation_result = ModelValidationService.validate_model_with_fallback(
+                provider,
+                model_id,
+                candidate_models=candidate_models,
+            )
+        else:
+            # Lightweight fast-path model access probe
+            validation_result = ModelValidationService.validate_model(
+                provider,
+                model_id,
+            )
+
+        details = getattr(validation_result, "details", {}) or {}
+        stage = getattr(validation_result, "stage", None)
+        if not stage:
+            stage = "validation_success" if validation_result.is_valid else "access_validation_failed"
+
+        attempted_models = details.get("attempted_models")
+        if attempted_models is None:
+            attempted_models = [{
+                "model_id": model_id,
+                "success": validation_result.is_valid,
+                "status": validation_result.status.value if isinstance(validation_result.status, ModelStatus) else str(validation_result.status),
+                "stage": stage,
+                "message": validation_result.message,
+            }]
+
         if validation_result.is_valid:
             return JsonResponse({
                 "success": True,
                 "data": {
                     "model_id": validation_result.model_id or model_id,
-                    "status": validation_result.status.value,
-                    "stage": getattr(validation_result, "stage", "validation_success") or "validation_success",
+                    "status": validation_result.status.value if isinstance(validation_result.status, ModelStatus) else str(validation_result.status),
+                    "stage": stage,
                     "message": validation_result.message,
                     "selected_model": details.get("selected_model", model_id),
                     "verified_model": details.get("verified_model", validation_result.model_id or model_id),
                     "fallback_used": details.get("fallback_used", False),
-                    "attempted_models": details.get("attempted_models", []),
+                    "attempted_models": attempted_models,
                 },
                 "error": None,
             })
@@ -694,18 +725,18 @@ def validate_model_api(request):
                 "success": False,
                 "data": {
                     "model_id": validation_result.model_id or model_id,
-                    "status": validation_result.status.value,
-                    "stage": getattr(validation_result, "stage", "validation_failed") or "validation_failed",
+                    "status": validation_result.status.value if isinstance(validation_result.status, ModelStatus) else str(validation_result.status),
+                    "stage": stage,
                     "selected_model": details.get("selected_model", model_id),
                     "verified_model": None,
                     "fallback_used": details.get("fallback_used", False),
-                    "attempted_models": details.get("attempted_models", []),
+                    "attempted_models": attempted_models,
                 },
                 "error": {
-                    "code": validation_result.status.value,
-                    "stage": getattr(validation_result, "stage", "validation_failed") or "validation_failed",
+                    "code": validation_result.status.value if isinstance(validation_result.status, ModelStatus) else str(validation_result.status),
+                    "stage": stage,
                     "message": validation_result.message,
-                    "attempted_models": details.get("attempted_models", []),
+                    "attempted_models": attempted_models,
                 },
             }, status=200)
 
@@ -920,6 +951,9 @@ def meeting_status_api(request, meeting_id):
     AJAX polling endpoint to retrieve durable meeting processing status and checkpoints.
     Scoped strictly to the authenticated user.
     """
+    # Detect and reap stale status on-demand if worker is orphaned
+    AsyncTaskService.check_and_reap_stale_task(meeting_id)
+
     meeting = get_object_or_404(Meeting, id=meeting_id, user=request.user)
 
     if meeting.status == "completed":
@@ -948,3 +982,138 @@ def meeting_status_api(request, meeting_id):
             "error": None,
         }
     )
+
+
+@login_required(login_url="login")
+@require_POST
+def retry_meeting_api(request, meeting_id):
+    """
+    Asynchronous AJAX endpoint to resume processing on a failed or stale meeting.
+    Reuses existing checkpoints (audio, remote Gemini file, transcript) without duplicating Meeting row.
+    """
+    try:
+        # Reap stale status if applicable
+        AsyncTaskService.check_and_reap_stale_task(meeting_id)
+
+        meeting = get_object_or_404(Meeting, id=meeting_id, user=request.user)
+
+        if meeting.status == "completed":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "ALREADY_COMPLETED",
+                        "message": "Meeting analysis has already completed successfully.",
+                    },
+                },
+                status=400,
+            )
+
+        if meeting.status == "processing":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "ALREADY_PROCESSING",
+                        "message": "Meeting is currently actively processing.",
+                    },
+                },
+                status=409,
+            )
+
+        # Preflight validation check on configured AI Provider
+        provider = ProviderFactory.get_provider(request.user)
+        if not provider:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "PROVIDER_NOT_CONFIGURED",
+                        "message": "Please configure your AI Provider and API Key in Settings before analyzing meetings.",
+                    },
+                },
+                status=400,
+            )
+
+        preflight = ModelValidationService.preflight_check(provider)
+        if not preflight.is_valid:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": preflight.status.value,
+                        "message": preflight.message,
+                    },
+                },
+                status=400,
+            )
+
+        # Acquire processing lease with allow_retry=True
+        task_id = AsyncTaskService.acquire_processing_lease(meeting.id, user=request.user, allow_retry=True)
+        if not task_id:
+            logger.error("Failed to acquire processing lease for retry on meeting %d", meeting.id)
+            return JsonResponse(
+                {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "LEASE_ACQUISITION_FAILED",
+                        "message": "Could not acquire processing lease for retry.",
+                    },
+                },
+                status=409,
+            )
+
+        # Resolve original media filepath if available
+        media_filepath = ""
+        if meeting.original_file:
+            try:
+                media_filepath = meeting.original_file.path
+            except Exception:
+                pass
+            if not media_filepath or not os.path.exists(media_filepath):
+                media_filepath = os.path.join(django_settings.MEDIA_ROOT, str(meeting.original_file))
+
+        # Dispatch background processing task via ThreadPoolExecutor
+        executor = AsyncTaskService.get_executor()
+        executor.submit(
+            AsyncTaskService.run_pipeline_stepwise,
+            meeting.id,
+            task_id,
+            media_filepath,
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "data": {
+                    "meeting_id": meeting.id,
+                    "task_id": task_id,
+                    "status": "processing",
+                    "stage": "queued",
+                    "message": "Meeting processing resumed from checkpoint.",
+                },
+                "error": None,
+            },
+            status=202,
+        )
+
+    except Http404:
+        raise
+    except Exception as exc:
+        logger.exception("Error in retry_meeting_api: %s", exc)
+        return JsonResponse(
+            {
+                "success": False,
+                "data": None,
+                "error": {
+                    "code": "SERVER_ERROR",
+                    "message": f"An error occurred while retrying meeting analysis: {str(exc)[:120]}",
+                },
+            },
+            status=500,
+        )

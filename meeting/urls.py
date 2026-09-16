@@ -44,6 +44,11 @@ urlpatterns = [
         name="meeting_status_api",
     ),
     path(
+        "meeting/retry/<int:meeting_id>/",
+        views.retry_meeting_api,
+        name="retry_meeting_api",
+    ),
+    path(
         "meeting/<int:meeting_id>/",
         views.meeting_detail,
         name="meeting_detail",

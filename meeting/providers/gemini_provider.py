@@ -370,3 +370,23 @@ Instructions:
         except Exception as exc:
             # Shield cleanup exceptions so they never disrupt user workflow
             logger.warning("Could not delete remote Gemini audio file '%s': %s", file_name, exc)
+
+    def get_file(self, file_name: str) -> Any:
+        """
+        Retrieves an existing remote file object by name from Gemini Files API.
+        Returns the file object if found and active/processing, or None if expired/deleted/inaccessible.
+        """
+        if not file_name:
+            return None
+        try:
+            self._ensure_client()
+            remote_file = self.client.files.get(name=file_name)
+            state_val = getattr(remote_file, "state", None)
+            state_name = getattr(state_val, "name", str(state_val))
+            if state_name == "FAILED":
+                logger.warning("Remote Gemini file '%s' is in FAILED state.", file_name)
+                return None
+            return remote_file
+        except Exception as exc:
+            logger.warning("Could not retrieve remote Gemini file '%s': %s", file_name, exc)
+            return None

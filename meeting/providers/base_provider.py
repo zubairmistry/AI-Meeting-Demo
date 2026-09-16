@@ -201,3 +201,10 @@ class BaseAIProvider(ABC):
         Default implementation is a no-op for providers that do not retain remote assets.
         """
         pass
+
+    def get_file(self, file_name: str) -> Any:
+        """
+        Optional helper to retrieve an existing remote file reference by name.
+        Default implementation returns None.
+        """
+        return None

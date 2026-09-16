@@ -170,10 +170,20 @@ Dashboard | AI Meeting Assistant
                         </td>
 
                         <td class="text-end">
-                            <a href="{% url 'meeting_detail' meeting.id %}"
-                               class="premium-button premium-button-primary premium-button-sm">
-                                <span>View</span> <i class="bi bi-chevron-right"></i>
-                            </a>
+                            <div class="d-flex align-items-center justify-content-end gap-2">
+                                {% if meeting.status == "failed" %}
+                                <button type="button"
+                                        class="premium-button premium-button-danger premium-button-sm btn-retry-dashboard"
+                                        data-meeting-id="{{ meeting.id }}"
+                                        title="Retry processing this meeting">
+                                    <i class="bi bi-arrow-clockwise"></i> <span>Retry</span>
+                                </button>
+                                {% endif %}
+                                <a href="{% url 'meeting_detail' meeting.id %}"
+                                   class="premium-button premium-button-primary premium-button-sm">
+                                    <span>View</span> <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
 
@@ -202,4 +212,62 @@ Dashboard | AI Meeting Assistant
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    document.querySelectorAll(".btn-retry-dashboard").forEach(function (btn) {
+        btn.addEventListener("click", async function (e) {
+            e.preventDefault();
+            const meetingId = this.getAttribute("data-meeting-id");
+            if (!meetingId || this.disabled) return;
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Retrying...';
+
+            try {
+                const csrfToken = getCookie("csrftoken") || document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+                const response = await fetch(`/meeting/retry/${meetingId}/`, {
+                    method: "POST",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "X-CSRFToken": csrfToken,
+                        "Accept": "application/json"
+                    }
+                });
+
+                const result = await response.json();
+                if (response.status === 202 && result.success) {
+                    window.location.href = `/meeting/${meetingId}/`;
+                } else {
+                    const err = (result.error && result.error.message) ? result.error.message : "Retry failed. Please check AI settings.";
+                    alert(err);
+                    this.disabled = false;
+                    this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>Retry</span>';
+                }
+            } catch (err) {
+                alert("Network error while submitting retry request.");
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> <span>Retry</span>';
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

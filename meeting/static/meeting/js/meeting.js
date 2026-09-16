@@ -475,8 +475,22 @@
                         const errMsg = data.error_message || "An error occurred during meeting analysis.";
                         const alertBox = document.getElementById("fileValidationAlert");
                         if (alertBox) {
-                            alertBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> ${errMsg}`;
+                            alertBox.innerHTML = `
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div><i class="bi bi-exclamation-triangle-fill me-2"></i> ${errMsg}</div>
+                                    <button type="button" id="btnRetryActiveMeeting" class="btn btn-sm btn-outline-danger rounded-pill fw-bold px-3 py-1">
+                                        <i class="bi bi-arrow-clockwise me-1"></i> Retry Analysis
+                                    </button>
+                                </div>
+                            `;
                             alertBox.classList.remove("d-none");
+                            const retryBtn = document.getElementById("btnRetryActiveMeeting");
+                            if (retryBtn) {
+                                retryBtn.addEventListener("click", function (e) {
+                                    e.preventDefault();
+                                    retryMeeting(meetingId);
+                                });
+                            }
                         }
                         appendActivityLog(`Failed: ${errMsg}`, "bi-x-circle text-danger");
 
@@ -513,6 +527,127 @@
             pollingTimer = setTimeout(() => pollMeetingStatus(meetingId), 2000);
         }
     }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function retryMeeting(meetingId) {
+        if (isProcessing) return;
+        isProcessing = true;
+        activeMeetingId = meetingId;
+        lastLoggedStage = null;
+        consecutiveNetworkErrors = 0;
+
+        const validationAlert = document.getElementById("fileValidationAlert");
+        if (validationAlert) {
+            validationAlert.classList.add("d-none");
+            validationAlert.innerHTML = "";
+        }
+
+        const analyzeBtn = document.getElementById("btnAnalyzeMeeting");
+        if (analyzeBtn) {
+            analyzeBtn.classList.add("loading");
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <span>Retrying Processing with AI...</span>
+            `;
+        }
+
+        const progressBar = document.getElementById("meetingProgressBar");
+        const percentLabel = document.getElementById("processingPercentLabel");
+        const stageLabel = document.getElementById("processingStageLabel");
+        const statusBadge = document.getElementById("processingStatusBadge");
+        const infoStatus = document.getElementById("infoProcessingStatus");
+
+        if (progressBar) {
+            progressBar.style.width = "10%";
+            progressBar.setAttribute("aria-valuenow", "10");
+            progressBar.className = "progress-bar bg-primary progress-bar-striped progress-bar-animated";
+        }
+        if (percentLabel) percentLabel.textContent = "10%";
+        if (stageLabel) stageLabel.textContent = "Resuming processing from checkpoint...";
+        if (statusBadge) {
+            statusBadge.textContent = "In Progress";
+            statusBadge.style.background = "rgba(99, 102, 241, 0.15)";
+            statusBadge.style.color = "var(--primary)";
+            statusBadge.style.border = "1px solid var(--primary-glow)";
+        }
+        if (infoStatus) {
+            infoStatus.textContent = "RUNNING";
+            infoStatus.className = "info-item-value text-primary fw-bold";
+        }
+
+        updateStepperUI("queued", "processing");
+        appendActivityLog("Retrying meeting processing from checkpoint...", "bi-arrow-clockwise text-primary");
+
+        try {
+            const csrfToken = getCookie("csrftoken") || document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+            const response = await fetch(`/meeting/retry/${meetingId}/`, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "X-CSRFToken": csrfToken,
+                    "Accept": "application/json"
+                }
+            });
+
+            if (response.status === 202) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    const taskId = result.data.task_id || "";
+                    appendActivityLog(`Retry task registered (ID: ${taskId.substring(0, 8)}...). Polling status...`, "bi-play-circle text-primary");
+                    pollMeetingStatus(meetingId);
+                } else {
+                    throw new Error(result.error ? result.error.message : "Unexpected retry response structure.");
+                }
+            } else {
+                let errMessage = "Retry failed. Please check AI settings.";
+                try {
+                    const errJson = await response.json();
+                    if (errJson.error && errJson.error.message) {
+                        errMessage = errJson.error.message;
+                    }
+                } catch (pErr) {}
+
+                showValidationMessage(errMessage);
+                appendActivityLog(`Retry failed: ${errMessage}`, "bi-x-circle text-danger");
+
+                isProcessing = false;
+                if (analyzeBtn) {
+                    analyzeBtn.classList.remove("loading");
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+                }
+            }
+        } catch (netErr) {
+            console.error("Retry request error:", netErr);
+            showValidationMessage("Network error while submitting retry request. Please check your connection.");
+            appendActivityLog("Network connection error on retry.", "bi-wifi-off text-danger");
+
+            isProcessing = false;
+            if (analyzeBtn) {
+                analyzeBtn.classList.remove("loading");
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = `<i class="bi bi-stars"></i><span>Analyze Meeting with AI</span>`;
+            }
+        }
+    }
+
+    // Expose for external page triggers
+    window.retryMeetingAnalysis = retryMeeting;
 
     /* ==========================================================================
        4. WORKSPACE FILE SELECTION, DRAG & DROP AND ASYNC SUBMISSION
