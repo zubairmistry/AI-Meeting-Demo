@@ -172,7 +172,7 @@ class AsyncUiPollingIntegrationTests(TestCase):
     def test_client_file_validation_js_contracts(self):
         """
         Verifies meeting.js file validation contracts:
-        - 50 MB byte limit equals 52428800 bytes.
+        - 50 MB byte default limit equals 52428800 bytes.
         - resetFilePreview accepts preserveAlert flag to avoid wiping validation alerts.
         - handleFile preserves alert on invalid extension and size exceeded.
         """
@@ -183,8 +183,9 @@ class AsyncUiPollingIntegrationTests(TestCase):
         with open(js_path, "r", encoding="utf-8") as f:
             js_content = f.read()
 
-        # 50 MB limit constant
-        self.assertIn("const MAX_SIZE_BYTES = 52428800;", js_content)
+        # 50 MB default fallback limit constant and helper
+        self.assertIn("const DEFAULT_MAX_SIZE_BYTES = 52428800;", js_content)
+        self.assertIn("function getMaxUploadSizeBytes()", js_content)
         self.assertEqual(50 * 1024 * 1024, 52428800)
 
         # resetFilePreview parameter and conditional hideValidationMessage
@@ -195,7 +196,7 @@ class AsyncUiPollingIntegrationTests(TestCase):
         # handleFile preserves alert
         self.assertIn("resetFilePreview(true);", js_content)
         self.assertIn("Unsupported file format.", js_content)
-        self.assertIn("exceeds the demo limit of 50 MB.", js_content)
+        self.assertIn("exceeds the limit of", js_content)
 
     def test_meeting_detail_renders_polling_script_when_processing(self):
         """
@@ -258,3 +259,27 @@ class AsyncUiPollingIntegrationTests(TestCase):
         resp_failed = self.client.get(reverse("meeting_detail", kwargs={"meeting_id": failed_meeting.id}))
         self.assertEqual(resp_failed.status_code, 200)
         self.assertNotIn("startDetailStatusPolling", resp_failed.content.decode("utf-8"))
+
+    def test_home_renders_default_and_custom_max_upload_size(self):
+        """
+        Verify that home view renders the default 50 MB limit in template and
+        dynamically scales when MAX_UPLOAD_SIZE is configured with a custom value (e.g. 2 GB).
+        """
+        self.client.force_login(self.user)
+
+        # 1. Default settings (50 MB / 52428800 bytes)
+        resp_default = self.client.get(reverse("meeting"))
+        self.assertEqual(resp_default.status_code, 200)
+        content_default = resp_default.content.decode("utf-8")
+        self.assertIn('data-max-upload-size="52428800"', content_default)
+        self.assertIn('data-max-bytes="52428800"', content_default)
+        self.assertIn("Max <span id=\"maxUploadDisplay\">50</span> MB", content_default)
+
+        # 2. Custom settings override (2 GB / 2147483648 bytes)
+        with self.settings(MAX_UPLOAD_SIZE=2147483648):
+            resp_custom = self.client.get(reverse("meeting"))
+            self.assertEqual(resp_custom.status_code, 200)
+            content_custom = resp_custom.content.decode("utf-8")
+            self.assertIn('data-max-upload-size="2147483648"', content_custom)
+            self.assertIn('data-max-bytes="2147483648"', content_custom)
+            self.assertIn("Max <span id=\"maxUploadDisplay\">2048</span> MB", content_custom)

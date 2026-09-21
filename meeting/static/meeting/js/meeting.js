@@ -103,7 +103,21 @@
        2. WORKSPACE CONSTANTS & HELPERS
        ========================================================================== */
     const ALLOWED_EXTENSIONS = [".mp4", ".mov", ".avi", ".mkv", ".mp3", ".wav", ".m4a"];
-    const MAX_SIZE_BYTES = 52428800; // 50 MB
+    const DEFAULT_MAX_SIZE_BYTES = 52428800; // 50 MB fallback
+
+    function getMaxUploadSizeBytes() {
+        const dropzone = document.getElementById("meetingDropzone");
+        if (dropzone && dropzone.dataset) {
+            const raw = dropzone.dataset.maxUploadSize || dropzone.dataset.maxBytes;
+            if (raw) {
+                const parsed = parseInt(raw, 10);
+                if (!isNaN(parsed) && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        return DEFAULT_MAX_SIZE_BYTES;
+    }
 
     function formatBytes(bytes) {
         if (bytes === 0) return "0 Bytes";
@@ -704,10 +718,12 @@
                 return;
             }
 
-            if (file.size > MAX_SIZE_BYTES) {
+            const maxSizeBytes = getMaxUploadSizeBytes();
+            if (file.size > maxSizeBytes) {
                 resetFilePreview(true);
+                const limitMb = Math.round(maxSizeBytes / (1024 * 1024));
                 showValidationMessage(
-                    `File size (${formatBytes(file.size)}) exceeds the demo limit of 50 MB.`
+                    `File size (${formatBytes(file.size)}) exceeds the limit of ${limitMb} MB.`
                 );
                 return;
             }

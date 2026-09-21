@@ -27,6 +27,8 @@ bin/
 .dirs/
 /scratch/
 *.log
+setup_log.txt
+verify_report.txt
 .DS_Store/
 .DS_Store
 Thumbs.db

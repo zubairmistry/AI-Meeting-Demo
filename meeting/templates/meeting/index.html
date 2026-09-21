@@ -193,7 +193,7 @@ AI Meeting Assistant | Enterprise AI Workspace
 
                     <!-- LEFT: Dropzone Area -->
                     <div class="col-md-6">
-                        <div id="meetingDropzone" class="meeting-dropzone">
+                        <div id="meetingDropzone" class="meeting-dropzone" data-max-upload-size="{{ max_upload_size|default:52428800 }}" data-max-bytes="{{ max_upload_size|default:52428800 }}">
                             <div class="dropzone-3d-icon">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                             </div>
@@ -206,7 +206,7 @@ AI Meeting Assistant | Enterprise AI Workspace
                             </button>
                             <div>
                                 <span class="dropzone-formats-badge">
-                                    <i class="bi bi-file-earmark-music text-primary"></i> MP4, MP3, WAV, MOV, AVI, MKV (Max 50 MB)
+                                    <i class="bi bi-file-earmark-music text-primary"></i> MP4, MP3, WAV, MOV, AVI, MKV (Max <span id="maxUploadDisplay">{{ max_upload_size_mb|default:50 }}</span> MB)
                                 </span>
                             </div>
                         </div>

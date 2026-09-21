@@ -1,0 +1,385 @@
+======================================================================
+AI MEETING ASSISTANT
+WINDOWS LOCAL SETUP & USER GUIDE
+======================================================================
+
+----------------------------------------------------------------------
+SECTION 1 — WHAT THIS APPLICATION DOES
+----------------------------------------------------------------------
+
+The AI Meeting Assistant is a productivity tool that runs locally on your
+Windows computer.
+
+It allows you to:
+- Upload your meeting audio or video recordings.
+- Automatically extract and process the audio.
+- Generate an accurate text transcript of the meeting discussion.
+- Generate an AI Executive Summary, key takeaways, and action items.
+- Review and search your meeting details directly in your web browser.
+
+The application runs privately on your computer at:
+http://127.0.0.1:8000/
+
+(If port 8000 is being used by another application, another local port
+between 8001 and 8010 will be selected automatically.)
+
+All processing and database storage occur locally on your machine.
+Meeting data is not shared with external servers, except for the
+specific AI model API calls you configure for transcription and summary
+generation.
+
+
+----------------------------------------------------------------------
+SECTION 2 — BEFORE YOU START
+----------------------------------------------------------------------
+
+Before running the setup, ensure your computer meets these requirements:
+
+1. Operating System: Windows 10 or Windows 11 (64-bit recommended).
+2. Internet Connection: Needed during initial setup to download required
+   software packages, and when analyzing meetings using AI APIs.
+3. Python Runtime: Python 3.10, 3.11, or 3.12 installed on your computer
+   with the "Add Python to PATH" option checked during installation.
+4. Disk Space: Sufficient local disk space to store your meeting video
+   and audio recordings (several gigabytes recommended for long meetings).
+5. Audio Extraction Engine (FFmpeg): Needed to convert video/audio
+   recordings into optimized audio. The setup script will check for this.
+6. AI API Key: A valid API key for Google Gemini, Anthropic Claude, or
+   OpenAI if you wish to generate AI transcripts and summaries.
+
+The automated setup script handles all technical package installations
+and environment configuration for you. You do NOT need to run terminal
+commands, create virtual environments, or run pip packages manually.
+
+
+----------------------------------------------------------------------
+SECTION 3 — DOWNLOAD THE APPLICATION
+----------------------------------------------------------------------
+
+1. Download the application ZIP package from the GitHub or release link
+   provided by your organization.
+2. Right-click the downloaded ZIP file and select "Extract All...".
+3. Extract the contents to a standard user folder (for example, inside
+   your Documents folder, Desktop, or a dedicated workspace folder).
+4. Avoid extracting into protected Windows system folders (such as
+   C:\Windows or C:\Program Files) to prevent permission issues.
+
+
+----------------------------------------------------------------------
+SECTION 4 — FIRST-TIME SETUP
+----------------------------------------------------------------------
+
+To set up the application for the first time:
+
+1. Open the extracted project folder.
+2. Double-click the file named:
+
+   Setup Application.bat
+
+3. A setup window will open and automatically perform the following steps:
+   - Check your Python installation.
+   - Set up an isolated Python virtual environment (.venv).
+   - Install all required software packages.
+   - Generate your private local security and encryption keys (.env).
+   - Initialize your local database (db.sqlite3).
+   - Create required media and storage folders.
+   - Check for the FFmpeg audio engine.
+   - Validate the system configuration.
+
+4. Please wait a few moments until you see the message:
+
+   ======================================================================
+    AI MEETING ASSISTANT - SETUP COMPLETED SUCCESSFULLY
+   ======================================================================
+
+5. Press any key to close the setup window.
+
+
+----------------------------------------------------------------------
+SECTION 5 — VERIFY INSTALLATION
+----------------------------------------------------------------------
+
+Before starting the application, confirm that everything is healthy:
+
+1. In the project folder, double-click:
+
+   Verify Installation.bat
+
+2. The verification tool will perform 10 non-destructive health checks:
+   [1/10] Project Files
+   [2/10] Python Runtime
+   [3/10] Virtual Environment
+   [4/10] Core Dependencies
+   [5/10] Security & Encryption Configuration
+   [6/10] Database Engine
+   [7/10] FFmpeg Audio Engine
+   [8/10] Media Storage Directories
+   [9/10] Django System Check
+   [10/10] Upload Configuration
+
+3. If everything is configured correctly, you will see:
+
+   ----------------------------------------------------------------------
+    STATUS: ALL CHECKS PASSED
+   ----------------------------------------------------------------------
+   The application is ready to start.
+
+4. If any check reports [FAIL]:
+   - Review the "Problem" description and "Action Required" on screen.
+   - Note the Reference Code (e.g., SETUP-FFMPEG-001).
+   - Rerun "Setup Application.bat" if advised, or consult Section 13.
+   - Detailed diagnostics are saved in "verify_report.txt".
+
+
+----------------------------------------------------------------------
+SECTION 6 — START THE APPLICATION
+----------------------------------------------------------------------
+
+1. In the project folder, double-click:
+
+   Start Application.bat
+
+2. The launcher will perform a quick pre-flight check, start the local
+   server, and automatically open your default web browser to:
+
+   http://127.0.0.1:8000/
+
+   (or an alternative port like 8001 if port 8000 is occupied).
+
+3. You will see a green status screen in the launcher window:
+
+   ======================================================================
+    AI MEETING ASSISTANT IS RUNNING
+   ======================================================================
+    URL: http://127.0.0.1:8000/
+    Status: RUNNING
+   ======================================================================
+
+IMPORTANT:
+Keep this launcher window open while you are using the application.
+
+To stop the application when you are finished:
+Click inside the launcher window and press CTRL+C.
+
+
+----------------------------------------------------------------------
+SECTION 7 — REGISTER / LOGIN
+----------------------------------------------------------------------
+
+When the browser opens:
+
+1. If you are using the application for the first time, click "Register"
+   to create your local user account.
+2. Enter your desired username, email address, and password.
+3. Log in with your new credentials.
+4. You will be directed to the main Dashboard.
+
+
+----------------------------------------------------------------------
+SECTION 8 — CONFIGURE AI PROVIDER
+----------------------------------------------------------------------
+
+To enable AI meeting transcription and executive summaries:
+
+1. In the navigation menu, click "Settings" (or "AI Settings").
+2. Select your preferred AI Provider:
+   - Google Gemini (Recommended for direct audio transcription & report)
+   - Anthropic Claude (For executive summary & analysis)
+   - OpenAI (For compatible analysis models)
+3. Enter your private API Key in the API Key field.
+   (Note: For Claude, you need an Anthropic API Key from your console;
+   a standard consumer Claude subscription is not an API key).
+4. Click "Discover Models" to retrieve the latest compatible models.
+5. Select a model from the list (e.g., gemini-2.5-flash-lite).
+6. Click "Validate Model" to run a safe live connection test.
+7. Click "Save Settings".
+
+Your API key is encrypted and stored safely in your local SQLite database.
+
+
+----------------------------------------------------------------------
+SECTION 9 — UPLOAD A MEETING
+----------------------------------------------------------------------
+
+1. In the navigation menu, click "Meeting" or "Upload Meeting".
+2. Drag and drop your meeting recording into the upload box, or click to
+   browse your computer.
+3. Supported formats include common video and audio files (MP4, MP3, WAV,
+   M4A, WebM, MOV, etc.).
+4. Enter a title or meeting topic if desired.
+5. Click "Upload & Analyze".
+6. The application processes the meeting in the background:
+   - Audio extraction via FFmpeg
+   - Audio transcription via AI Provider
+   - Executive Summary generation
+7. You can monitor progress on the Meeting Detail page. Status updates
+   automatically every few seconds.
+
+
+----------------------------------------------------------------------
+SECTION 10 — LONG-DURATION RECORDINGS
+----------------------------------------------------------------------
+
+Your local Windows installation is configured to support large files:
+
+- Local Windows Upload Limit: Up to 2 GB (2048 MB)
+- Cloud Demo / Render Default: 50 MB
+
+This 2 GB local capacity is designed to accommodate full-length meetings,
+including recordings of 1 to 2 hours or longer.
+
+Tips for long recordings:
+- Longer meetings take more time to process and upload to AI services.
+- Ensure your computer stays connected to the internet during analysis.
+- Ensure you have adequate disk space for extracted audio files.
+- If a high-resolution 4K/1080p video file is very large, extracting or
+  converting to audio (MP3/M4A) prior to upload can speed up processing.
+
+
+----------------------------------------------------------------------
+SECTION 11 — IMPORTANT DATA & STORAGE INFORMATION
+----------------------------------------------------------------------
+
+Your local installation stores data in three places:
+1. Database: "db.sqlite3" in the project folder (stores accounts, meeting
+   metadata, transcripts, summaries, and encrypted settings).
+2. Media Files: The "media" folder (stores uploaded recordings and
+   extracted audio).
+3. Configuration: The ".env" file (contains local encryption keys).
+
+IMPORTANT:
+- Do NOT delete "db.sqlite3" unless you want to reset all meeting data.
+- Do NOT delete the "media" folder.
+- Do NOT delete or modify the ".env" file. It contains the cryptographic
+  key required to decrypt your saved AI API keys.
+
+
+----------------------------------------------------------------------
+SECTION 12 — SECURITY & PRIVACY
+----------------------------------------------------------------------
+
+- Local Network Binding: The application binds strictly to 127.0.0.1
+  (localhost). It is not accessible from other computers on your Wi-Fi
+  or local network.
+- Key Encryption: Your AI API keys are encrypted with industry-standard
+  Fernet encryption before being saved to the database.
+- Confidentiality: Never share your ".env" file or post it to public
+  forums or repositories.
+- Safe Credentials: Never send your API keys or passwords via email or
+  unencrypted chat.
+
+
+----------------------------------------------------------------------
+SECTION 13 — COMMON PROBLEMS & REFERENCE CODES
+----------------------------------------------------------------------
+
+Reference Code    Problem & Resolution
+----------------  ----------------------------------------------------
+SETUP-PYTHON-001  Python not detected on system PATH.
+                  Action: Install Python 3.11 from python.org and check
+                  "Add Python to PATH" during installation.
+
+SETUP-PYTHON-002  Installed Python version is older than Python 3.10.
+                  Action: Install Python 3.11 from python.org.
+
+SETUP-PYTHON-003  Python version is newer than tested range (3.10–3.12).
+                  Action: If errors occur, install Python 3.11.
+
+SETUP-VENV-001    Virtual environment (.venv) is missing or corrupted.
+                  Action: Run "Setup Application.bat" again.
+
+SETUP-DEP-001     Python packages failed to install.
+                  Action: Check internet connection and rerun setup.
+
+SETUP-ENV-001     Security configuration (.env) missing or invalid.
+                  Action: Run "Setup Application.bat" again.
+
+SETUP-DB-001      Database (db.sqlite3) missing or migrations failed.
+                  Action: Run "Setup Application.bat" again.
+
+SETUP-FFMPEG-001  FFmpeg audio extraction engine was not detected.
+                  Action: Download FFmpeg essentials and place
+                  "ffmpeg.exe" inside the "bin" folder in the project.
+
+SETUP-STORAGE-001 Required application storage folders are missing.
+                  Action: Run "Setup Application.bat" again.
+
+SETUP-DJANGO-001  Django configuration error detected.
+                  Action: Run "Verify Installation.bat" and review
+                  "verify_report.txt".
+
+START-PORT-001    No free local port found between 8000 and 8010.
+                  Action: Close unused applications using local ports.
+
+START-DJANGO-001  Application server failed to start.
+                  Action: Run "Verify Installation.bat" to diagnose.
+
+
+----------------------------------------------------------------------
+SECTION 14 — DIAGNOSTIC REPORTS
+----------------------------------------------------------------------
+
+If you experience issues, the application generates diagnostic files:
+
+- "setup_log.txt": Records the setup process steps.
+- "verify_report.txt": Records the results of the 10 verification checks.
+
+These files contain diagnostic status information only and automatically
+redact any security tokens or private keys. If you need assistance from
+your IT department or support team, provide "verify_report.txt".
+
+Never send your ".env" file or API keys when requesting support.
+
+
+----------------------------------------------------------------------
+SECTION 15 — WHEN TO CONTACT IT SUPPORT
+----------------------------------------------------------------------
+
+Contact your organization's IT support team if:
+- Setup repeatedly fails after checking your internet connection.
+- "Verify Installation.bat" does not show "STATUS: ALL CHECKS PASSED".
+- Your organization requires IT administrator rights to install Python
+  or place FFmpeg in the bin folder.
+- Corporate firewalls or proxy settings block API access to AI services.
+- Database corruption occurs and you need assistance restoring backups.
+
+When contacting IT support, please provide:
+1. The Reference Code displayed on screen (e.g., SETUP-FFMPEG-001).
+2. A copy of "verify_report.txt".
+3. A screenshot of the error message if applicable.
+
+
+----------------------------------------------------------------------
+SECTION 16 — DAILY USER WORKFLOW
+----------------------------------------------------------------------
+
+For everyday use, you only need one step to start:
+
+1. Double-click "Start Application.bat".
+2. Your browser will open to the Dashboard (http://127.0.0.1:8000/).
+3. Log in to your account.
+4. Upload your meeting recording and click "Upload & Analyze".
+5. View the generated transcript and AI Executive Summary.
+6. When finished, click inside the launcher window and press CTRL+C
+   to stop the application.
+
+(You do NOT need to run Setup or Verify every day.)
+
+
+----------------------------------------------------------------------
+SECTION 17 — FIRST-TIME SETUP QUICK CARD
+----------------------------------------------------------------------
+
+======================================================================
+ FIRST-TIME SETUP:
+ [1] Double-click: "Setup Application.bat"      (Wait for success)
+ [2] Double-click: "Verify Installation.bat"   (Confirm all pass)
+ [3] Double-click: "Start Application.bat"     (Browser opens)
+
+ IN THE APPLICATION:
+ [4] Register or Log In
+ [5] Settings  --> Enter API Key --> Discover --> Validate --> Save
+ [6] Meeting   --> Upload Video/Audio Recording --> Analyze
+ [7] Dashboard --> Review Transcript and Executive Summary
+======================================================================
+

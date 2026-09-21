@@ -208,6 +208,9 @@ def home(request):
 
             status = "Please select a meeting file."
 
+    max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
+    max_upload_size_mb = max(1, max_upload_size // (1024 * 1024))
+
     return render(
         request,
         "meeting/index.html",
@@ -215,6 +218,8 @@ def home(request):
             "status": status,
             "transcript": transcript,
             "report": report,
+            "max_upload_size": max_upload_size,
+            "max_upload_size_mb": max_upload_size_mb,
         }
     ) 
 

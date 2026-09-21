@@ -207,10 +207,21 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# File Upload Limits (50 MB limit for demo to ensure fast processing)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
-MAX_UPLOAD_SIZE = 52428800
+# File Upload Limits (Configurable via environment variable; defaults to 50 MB for demo/production)
+try:
+    MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", "52428800"))
+except (ValueError, TypeError):
+    MAX_UPLOAD_SIZE = 52428800
+
+try:
+    DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE", str(MAX_UPLOAD_SIZE)))
+except (ValueError, TypeError):
+    DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
+
+try:
+    FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("FILE_UPLOAD_MAX_MEMORY_SIZE", str(MAX_UPLOAD_SIZE)))
+except (ValueError, TypeError):
+    FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 
 # Production Security Headers (when DEBUG=False)
 if not DEBUG:
