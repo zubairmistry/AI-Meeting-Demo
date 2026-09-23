@@ -268,12 +268,13 @@ class AsyncUiPollingIntegrationTests(TestCase):
         self.client.force_login(self.user)
 
         # 1. Default settings (50 MB / 52428800 bytes)
-        resp_default = self.client.get(reverse("meeting"))
-        self.assertEqual(resp_default.status_code, 200)
-        content_default = resp_default.content.decode("utf-8")
-        self.assertIn('data-max-upload-size="52428800"', content_default)
-        self.assertIn('data-max-bytes="52428800"', content_default)
-        self.assertIn("Max <span id=\"maxUploadDisplay\">50</span> MB", content_default)
+        with self.settings(MAX_UPLOAD_SIZE=52428800):
+            resp_default = self.client.get(reverse("meeting"))
+            self.assertEqual(resp_default.status_code, 200)
+            content_default = resp_default.content.decode("utf-8")
+            self.assertIn('data-max-upload-size="52428800"', content_default)
+            self.assertIn('data-max-bytes="52428800"', content_default)
+            self.assertIn("Max <span id=\"maxUploadDisplay\">50</span> MB", content_default)
 
         # 2. Custom settings override (2 GB / 2147483648 bytes)
         with self.settings(MAX_UPLOAD_SIZE=2147483648):

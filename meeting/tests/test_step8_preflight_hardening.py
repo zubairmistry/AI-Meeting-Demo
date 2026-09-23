@@ -14,7 +14,7 @@ Covers:
 import os
 import subprocess
 from unittest.mock import MagicMock, patch
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -166,6 +166,7 @@ class Step8PreflightHardeningTests(TestCase):
         self.assertIn("Invalid file. Please upload only MP4, MOV, AVI, MKV, MP3 or WAV", response.context["status"])
         self.assertEqual(Meeting.objects.filter(user=self.user).count(), 0)
 
+    @override_settings(MAX_UPLOAD_SIZE=52428800)
     def test_upload_file_exceeding_max_size_limit_rejected(self):
         """Files exceeding 50 MB limit are rejected before disk or FFmpeg processing."""
         self.client.force_login(self.user)

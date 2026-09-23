@@ -1,6 +1,7 @@
 import datetime
 import io
 import json
+import tempfile
 import uuid
 from unittest.mock import patch, MagicMock
 
@@ -337,6 +338,7 @@ class AsyncAnalyzeApiTests(TestCase):
         mock_provider.cleanup_audio.assert_not_called()
 
 
+@override_settings(MEDIA_ROOT=tempfile.gettempdir())
 class RuntimeModelFallbackPipelineTests(TestCase):
     """
     Automated test suite for P0.2:
@@ -394,7 +396,7 @@ class RuntimeModelFallbackPipelineTests(TestCase):
         meeting = Meeting.objects.create(
             user=self.user,
             meeting_name="Normal Meeting",
-            original_file="meeting.mp4",
+            original_file="dummy_meeting.mp4",
             model_name="gemini-2.5-flash-lite",
             status="processing",
             stage="queued",
@@ -470,7 +472,7 @@ class RuntimeModelFallbackPipelineTests(TestCase):
         meeting = Meeting.objects.create(
             user=self.user,
             meeting_name="High Demand Fallback Meeting",
-            original_file="meeting.mp4",
+            original_file="dummy_meeting.mp4",
             model_name="gemini-2.5-flash-lite",
             status="processing",
             stage="queued",
