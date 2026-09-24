@@ -76,9 +76,38 @@ AI Meeting Assistant | Enterprise AI Workspace
         <div class="meeting-card-3d mb-3">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="text-uppercase fw-bold text-muted small mb-0" style="font-size: 0.74rem; letter-spacing: 0.5px;">AI Provider Status</h6>
-                <span class="badge-soon">Soon</span>
+                {% if is_provider_configured %}
+                <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.68rem; font-weight: 700;">Connected</span>
+                {% else %}
+                <span class="badge rounded-pill" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 0.68rem; font-weight: 700;">Not Configured</span>
+                {% endif %}
             </div>
-            <!-- Gemini Row -->
+
+            {% if is_provider_configured %}
+            <!-- Active Configured Provider -->
+            <div class="provider-row mb-2" style="border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.05);">
+                <div class="provider-info">
+                    <div class="provider-icon-badge {% if active_provider == 'gemini' %}provider-icon-gemini{% elif active_provider == 'openai' %}provider-icon-openai{% elif active_provider == 'claude' %}provider-icon-claude{% else %}provider-icon-gemini{% endif %}">
+                        {% if active_provider == 'gemini' %}
+                        <i class="bi bi-stars"></i>
+                        {% elif active_provider == 'openai' %}
+                        <i class="bi bi-robot"></i>
+                        {% elif active_provider == 'claude' %}
+                        <i class="bi bi-chat-square-quote"></i>
+                        {% else %}
+                        <i class="bi bi-cpu-fill"></i>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <div class="fw-bold" style="font-size: 0.82rem; color: var(--text-main);">{{ active_provider_name }}</div>
+                        <div class="small text-muted text-truncate" style="font-size: 0.7rem; max-width: 120px;" title="{{ active_model }}">{{ active_model }}</div>
+                    </div>
+                </div>
+                <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.68rem; font-weight: 700;">Connected</span>
+            </div>
+
+            <!-- Other Supported Providers -->
+            {% if active_provider != 'gemini' %}
             <div class="provider-row">
                 <div class="provider-info">
                     <div class="provider-icon-badge provider-icon-gemini">
@@ -89,9 +118,11 @@ AI Meeting Assistant | Enterprise AI Workspace
                         <div class="small text-muted" style="font-size: 0.7rem;">2.5 Flash</div>
                     </div>
                 </div>
-                <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.68rem; font-weight: 700;">Connected</span>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
             </div>
-            <!-- OpenAI Row -->
+            {% endif %}
+
+            {% if active_provider != 'openai' %}
             <div class="provider-row">
                 <div class="provider-info">
                     <div class="provider-icon-badge provider-icon-openai">
@@ -102,9 +133,11 @@ AI Meeting Assistant | Enterprise AI Workspace
                         <div class="small text-muted" style="font-size: 0.7rem;">Whisper + 4o</div>
                     </div>
                 </div>
-                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Soon</span>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
             </div>
-            <!-- Claude Row -->
+            {% endif %}
+
+            {% if active_provider != 'claude' %}
             <div class="provider-row mb-0">
                 <div class="provider-info">
                     <div class="provider-icon-badge provider-icon-claude">
@@ -115,22 +148,75 @@ AI Meeting Assistant | Enterprise AI Workspace
                         <div class="small text-muted" style="font-size: 0.7rem;">Sonnet 3.7</div>
                     </div>
                 </div>
-                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Soon</span>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
             </div>
+            {% endif %}
+
+            {% else %}
+            <!-- Unconfigured Notice -->
+            <div class="p-2 mb-2 rounded-3 text-center" style="background: var(--surface-subtle); border: 1px dashed var(--border);">
+                <div class="small fw-bold text-danger mb-1" style="font-size: 0.78rem;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Not Configured
+                </div>
+                <div class="text-muted mb-2" style="font-size: 0.7rem; line-height: 1.3;">
+                    Configure your AI Provider &amp; API Key in Settings to start analyzing meetings.
+                </div>
+                <a href="{% url 'settings' %}" class="btn btn-primary btn-sm w-100 rounded-pill fw-bold" style="font-size: 0.72rem; padding: 4px 8px;">
+                    <i class="bi bi-gear-fill me-1"></i> Configure in Settings
+                </a>
+            </div>
+
+            <!-- Supported Providers (Available) -->
+            <div class="provider-row">
+                <div class="provider-info">
+                    <div class="provider-icon-badge provider-icon-gemini">
+                        <i class="bi bi-stars"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold" style="font-size: 0.82rem; color: var(--text-main);">Gemini</div>
+                        <div class="small text-muted" style="font-size: 0.7rem;">2.5 Flash</div>
+                    </div>
+                </div>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
+            </div>
+            <div class="provider-row">
+                <div class="provider-info">
+                    <div class="provider-icon-badge provider-icon-openai">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold" style="font-size: 0.82rem; color: var(--text-main);">OpenAI</div>
+                        <div class="small text-muted" style="font-size: 0.7rem;">Whisper + 4o</div>
+                    </div>
+                </div>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
+            </div>
+            <div class="provider-row mb-0">
+                <div class="provider-info">
+                    <div class="provider-icon-badge provider-icon-claude">
+                        <i class="bi bi-chat-square-quote"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold" style="font-size: 0.82rem; color: var(--text-main);">Claude</div>
+                        <div class="small text-muted" style="font-size: 0.7rem;">Sonnet 3.7</div>
+                    </div>
+                </div>
+                <span class="badge rounded-pill" style="background: rgba(125, 125, 125, 0.15); color: var(--text-muted); font-size: 0.68rem; font-weight: 700;">Available</span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Storage Used Card -->
         <div class="meeting-card-3d mb-3">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="text-uppercase fw-bold text-muted small mb-0" style="font-size: 0.74rem; letter-spacing: 0.5px;">Storage Used</h6>
-                <span class="badge-soon">Soon</span>
             </div>
             <div class="d-flex justify-content-between small mb-1">
-                <span class="fw-bold" style="color: var(--text-main); font-size: 0.8rem;">2.34 GB / 10 GB</span>
-                <span class="fw-bold text-primary" style="font-size: 0.8rem;">23%</span>
+                <span class="fw-bold" style="color: var(--text-main); font-size: 0.8rem;">{{ user_storage_display }} / {{ storage_quota_display }}</span>
+                <span class="fw-bold text-primary" style="font-size: 0.8rem;">{{ storage_percentage }}%</span>
             </div>
             <div class="progress my-2" style="height: 5px; background: var(--border);">
-                <div class="progress-bar bg-primary" role="progressbar" style="width: 23%;" aria-valuenow="23" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ storage_percentage }}%;" aria-valuenow="{{ storage_percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
             <div class="small text-muted" style="font-size: 0.7rem;">
                 <i class="bi bi-shield-check text-success me-1"></i> Auto-purged after analysis.
@@ -468,32 +554,31 @@ AI Meeting Assistant | Enterprise AI Workspace
         <div class="meeting-card-3d mb-3">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="text-uppercase fw-bold text-muted small mb-0" style="font-size: 0.74rem; letter-spacing: 0.5px;">Meeting Information</h6>
-                <span class="badge-soon">Soon</span>
             </div>
             <!-- 1. Last Used -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-clock-history text-primary"></i> Last Used</span>
-                <span id="infoLastUsed" class="info-item-value">03 Sep 2026</span>
+                <span id="infoLastUsed" class="info-item-value">{{ latest_meeting_date }}</span>
             </div>
             <!-- 2. Detected Language -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-translate text-primary"></i> Detected Language</span>
-                <span id="infoDetectedLanguage" class="info-item-value">English</span>
+                <span id="infoDetectedLanguage" class="info-item-value">Auto (Speech)</span>
             </div>
             <!-- 3. Input Format -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-filetype-mp4 text-primary"></i> Input Format</span>
-                <span id="infoInputFormat" class="info-item-value">MP4</span>
+                <span id="infoInputFormat" class="info-item-value">{{ latest_meeting_format }}</span>
             </div>
             <!-- 4. Runtime Duration -->
             <div class="info-item-row">
                 <span class="info-item-label"><i class="bi bi-stopwatch text-primary"></i> Runtime Duration</span>
-                <span id="infoRuntimeDuration" class="info-item-value">{% if transcript %}02 min 37 sec{% else %}—{% endif %}</span>
+                <span id="infoRuntimeDuration" class="info-item-value">{{ latest_meeting_duration }}</span>
             </div>
             <!-- 5. Processing Status -->
             <div class="info-item-row border-bottom-0 pb-0">
                 <span class="info-item-label"><i class="bi bi-check-circle-fill text-success"></i> Processing Status</span>
-                <span id="infoProcessingStatus" class="info-item-value {% if report %}text-success{% elif status %}text-primary{% else %}text-muted{% endif %}">{% if report %}COMPLETED{% elif status %}RUNNING{% else %}READY{% endif %}</span>
+                <span id="infoProcessingStatus" class="info-item-value {{ latest_meeting_status_class }}">{{ latest_meeting_status }}</span>
             </div>
         </div>
 

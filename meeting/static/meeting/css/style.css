@@ -489,19 +489,62 @@ h1, h2, h3, h4, h5, h6 {
     max-width: 1720px;
     margin: 0 auto;
     padding: 12px 16px 40px;
+    box-sizing: border-box;
+}
+
+.meeting-sidebar-left,
+.meeting-center-workspace,
+.meeting-sidebar-right {
+    min-width: 0;
+}
+
+@media (max-width: 1400px) {
+    .meeting-layout-grid {
+        grid-template-columns: 230px minmax(0, 1fr) 270px;
+        gap: 14px;
+    }
 }
 
 @media (max-width: 1280px) {
     .meeting-layout-grid {
-        grid-template-columns: 220px minmax(0, 1fr) 260px;
+        grid-template-columns: 215px minmax(0, 1fr) 255px;
         gap: 12px;
     }
 }
 
-@media (max-width: 992px) {
+/* 2-Column Responsive Collapse (Tablet Landscape & Medium Displays: 769px to 1080px, including 1024x768) */
+@media (max-width: 1080px) and (min-width: 769px) {
+    .meeting-layout-grid {
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 14px;
+        padding: 10px 14px 30px;
+    }
+    .meeting-center-workspace {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+    .meeting-sidebar-right {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    .meeting-sidebar-left {
+        grid-column: 2;
+        grid-row: 2;
+    }
+}
+
+/* 1-Column Responsive Collapse (Mobile & Portrait Tablet: <= 768px) */
+@media (max-width: 768px) {
     .meeting-layout-grid {
         grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 14px;
+        padding: 8px 12px 24px;
+    }
+    .meeting-sidebar-left,
+    .meeting-center-workspace,
+    .meeting-sidebar-right {
+        grid-column: 1;
+        grid-row: auto;
     }
 }
 
@@ -509,6 +552,7 @@ h1, h2, h3, h4, h5, h6 {
 .meeting-card-3d {
     background: var(--surface-glass);
     border: 1px solid var(--border);
+    border-top: 1px solid var(--border-highlight);
     border-radius: 16px;
     padding: 16px 18px;
     box-shadow: var(--shadow-card);
@@ -517,12 +561,13 @@ h1, h2, h3, h4, h5, h6 {
     position: relative;
     overflow: hidden;
     margin-bottom: 16px;
-    transition: all 0.25s ease;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .meeting-card-3d:hover {
     border-color: var(--border-focus);
-    box-shadow: var(--shadow-card), 0 0 14px -3px var(--primary-glow);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card), 0 8px 24px -4px var(--primary-glow);
 }
 
 .meeting-section-header {
@@ -557,6 +602,7 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 800;
     font-size: 0.85rem;
     box-shadow: 0 3px 8px var(--primary-glow);
+    flex-shrink: 0;
 }
 
 .meeting-section-subtitle {
@@ -564,6 +610,7 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-muted) !important;
     margin-top: 3px;
     margin-bottom: 0;
+    line-height: 1.4;
 }
 
 /* ==========================================================================
@@ -602,17 +649,25 @@ h1, h2, h3, h4, h5, h6 {
     color: #ffffff !important;
     box-shadow: 0 4px 12px var(--primary-glow);
     font-weight: 700;
+    border-color: transparent;
+}
+
+.sidebar-nav-item.disabled {
+    opacity: 0.65;
+    cursor: default;
+    pointer-events: none;
 }
 
 .badge-soon {
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
-    padding: 2px 6px;
+    padding: 2px 7px;
     border-radius: 50px;
     background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    letter-spacing: 0.3px;
 }
 
 /* Provider Status Rows */
@@ -625,12 +680,20 @@ h1, h2, h3, h4, h5, h6 {
     background: var(--surface-subtle);
     border: 1px solid var(--border-subtle);
     margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+
+.provider-row:hover {
+    border-color: var(--border-focus);
+    background: rgba(125, 125, 125, 0.08);
+    transform: translateY(-1px);
 }
 
 .provider-info {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
 
 .provider-icon-badge {
@@ -642,11 +705,28 @@ h1, h2, h3, h4, h5, h6 {
     justify-content: center;
     font-size: 13px;
     color: #ffffff;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .provider-icon-gemini { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
 .provider-icon-openai { background: linear-gradient(135deg, #059669, #10b981); }
 .provider-icon-claude { background: linear-gradient(135deg, #d97706, #f59e0b); }
+
+/* Storage Card Refinement */
+.meeting-sidebar-left .progress {
+    height: 6px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.meeting-sidebar-left .progress-bar {
+    border-radius: 999px;
+    background: var(--primary-gradient) !important;
+    transition: width 0.4s ease;
+}
 
 /* ==========================================================================
    5. CENTER WORKSPACE — SECTION 1: UPLOAD (SPLIT LAYOUT)
@@ -661,10 +741,12 @@ h1, h2, h3, h4, h5, h6 {
     cursor: pointer;
     transition: all 0.25s ease;
     height: 100%;
+    min-height: 200px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .meeting-dropzone:hover,
@@ -672,7 +754,7 @@ h1, h2, h3, h4, h5, h6 {
     border-color: var(--primary);
     background: var(--dropzone-hover-bg);
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px -4px var(--primary-glow);
+    box-shadow: 0 8px 24px -4px var(--primary-glow);
 }
 
 .dropzone-3d-icon {
@@ -687,6 +769,11 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 22px;
     margin: 0 auto 10px;
     box-shadow: 0 4px 14px var(--primary-glow);
+    transition: transform 0.25s ease;
+}
+
+.meeting-dropzone:hover .dropzone-3d-icon {
+    transform: scale(1.08) translateY(-2px);
 }
 
 .dropzone-formats-badge {
@@ -710,9 +797,11 @@ h1, h2, h3, h4, h5, h6 {
     border-radius: 14px;
     padding: 16px 18px;
     height: 100%;
+    min-height: 200px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    transition: border-color 0.2s ease;
 }
 
 .selected-file-meta-row {
@@ -723,6 +812,10 @@ h1, h2, h3, h4, h5, h6 {
     border-bottom: 1px solid var(--border-subtle);
     font-size: 0.82rem;
     color: var(--text-main);
+}
+
+.selected-file-meta-row:last-of-type {
+    border-bottom: none;
 }
 
 .selected-file-meta-row .text-muted {
@@ -748,12 +841,19 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: var(--shadow-glow);
     margin-top: 14px;
     transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
 }
 
 .meeting-analyze-btn:hover {
     background: var(--primary-gradient-hover);
     transform: translateY(-2px);
     box-shadow: 0 8px 24px -4px var(--primary-glow);
+}
+
+.meeting-analyze-btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-glow);
 }
 
 .meeting-analyze-btn.loading {
@@ -770,6 +870,22 @@ h1, h2, h3, h4, h5, h6 {
     overflow-x: auto;
     padding: 6px 0;
     margin-bottom: 14px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.meeting-stepper-container::-webkit-scrollbar {
+    height: 4px;
+}
+
+.meeting-stepper-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.meeting-stepper-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
 }
 
 .meeting-stepper {
@@ -814,12 +930,21 @@ h1, h2, h3, h4, h5, h6 {
     color: #ffffff;
     box-shadow: 0 0 16px var(--primary-glow);
     transform: scale(1.08);
+    animation: pulseStageNode 2s infinite ease-in-out;
 }
 
 .stepper-stage.completed .stepper-stage-node {
     background: #10b981;
     border-color: #ffffff;
     color: #ffffff;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.stepper-stage.failed .stepper-stage-node {
+    background: #ef4444;
+    border-color: #ffffff;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
 }
 
 .stepper-stage-label {
@@ -827,20 +952,109 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     color: var(--text-secondary) !important;
     white-space: nowrap;
+    transition: color 0.2s ease;
+}
+
+.stepper-stage.active .stepper-stage-label {
+    color: var(--text-main) !important;
+    font-weight: 800;
+}
+
+.stepper-stage.completed .stepper-stage-label {
+    color: var(--text-main) !important;
+}
+
+.stepper-stage.failed .stepper-stage-label {
+    color: #ef4444 !important;
+    font-weight: 800;
 }
 
 .stepper-connector {
     flex: 1;
-    height: 2px;
+    height: 3px;
     background: var(--border);
     margin: 0 -6px 16px;
     z-index: 1;
     position: relative;
+    border-radius: 2px;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
 .stepper-connector.active {
     background: var(--primary-gradient);
     box-shadow: 0 0 8px var(--primary-glow);
+}
+
+@keyframes pulseStageNode {
+    0% {
+        box-shadow: 0 0 0 0 var(--primary-glow);
+    }
+    70% {
+        box-shadow: 0 0 0 8px transparent;
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+/* Processing Progress Bar in Section 2 */
+#processingProgressBarContainer .progress {
+    height: 6px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+#processingProgressBarContainer .progress-bar {
+    border-radius: 999px;
+    background: var(--primary-gradient) !important;
+}
+
+/* Activity Log Stream Custom Scrollbar & Animation */
+#activityLogStream {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+#activityLogStream::-webkit-scrollbar {
+    width: 5px;
+}
+
+#activityLogStream::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#activityLogStream::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+#activityLogStream::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+.activity-log-entry {
+    animation: fadeInLog 0.2s ease;
+    line-height: 1.5;
+    padding: 2px 0;
+}
+
+.activity-log-entry .font-monospace {
+    color: var(--text-muted) !important;
+    font-size: 0.72rem;
+    letter-spacing: -0.2px;
+}
+
+@keyframes fadeInLog {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ==========================================================================
@@ -854,11 +1068,32 @@ h1, h2, h3, h4, h5, h6 {
     padding: 16px;
     max-height: 400px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.meeting-output-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.meeting-output-box::-webkit-scrollbar-track {
+    background: var(--surface-subtle);
+    border-radius: 6px;
+}
+
+.meeting-output-box::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 6px;
+}
+
+.meeting-output-box::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
 }
 
 .meeting-output-pre {
     margin: 0;
     white-space: pre-wrap;
+    word-break: break-word;
     font-family: 'Inter', monospace;
     font-size: 0.88rem;
     line-height: 1.6;
@@ -900,6 +1135,7 @@ h1, h2, h3, h4, h5, h6 {
     padding: 7px 0;
     border-bottom: 1px solid var(--border-subtle);
     font-size: 0.82rem;
+    transition: background 0.15s ease;
 }
 
 .info-item-label {
@@ -907,11 +1143,13 @@ h1, h2, h3, h4, h5, h6 {
     display: flex;
     align-items: center;
     gap: 6px;
+    font-weight: 500;
 }
 
 .info-item-value {
     color: var(--text-main) !important;
     font-weight: 700;
+    text-align: right;
 }
 
 /* Download Reports 2x2 Grid */
@@ -958,12 +1196,35 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 15px;
     color: #ffffff;
     margin-bottom: 5px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .download-icon-box.txt { background: linear-gradient(135deg, #0284c7, #38bdf8); }
 .download-icon-box.doc { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
 .download-icon-box.xls { background: linear-gradient(135deg, #059669, #10b981); }
 .download-icon-box.pdf { background: linear-gradient(135deg, #dc2626, #ef4444); }
+
+/* Responsive adjustments for mobile and small viewports */
+@media (max-width: 768px) {
+    .meeting-dropzone {
+        padding: 20px 12px;
+        min-height: 170px;
+    }
+    .selected-file-container {
+        min-height: 170px;
+        padding: 14px 16px;
+    }
+    .meeting-section-title {
+        font-size: 1.05rem;
+    }
+    .meeting-analyze-btn {
+        height: 46px;
+        font-size: 0.92rem;
+    }
+    .download-reports-grid {
+        gap: 8px;
+    }
+}
 
 /* ==========================================================================
    9. BUTTONS & UTILITIES
@@ -1049,6 +1310,16 @@ h1, h2, h3, h4, h5, h6 {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Accessibility & Focus-Visible Standards */
+.premium-button:focus-visible,
+.btn-action-pill:focus-visible,
+.download-report-card:focus-visible,
+.meeting-analyze-btn:focus-visible,
+.sidebar-nav-item:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
 }
 
 /* ==========================================================================

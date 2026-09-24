@@ -14,6 +14,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.db.models import Sum
 
 from .models import AISettings, Meeting, format_duration
 from .forms import AISettingsForm, RegisterForm, LoginForm
@@ -32,6 +33,133 @@ from meeting.services.async_task_service import AsyncTaskService
 logger = logging.getLogger(__name__)
 
 
+def _get_home_context(request, status="Waiting for meeting upload...", transcript="", report=""):
+    """
+    Constructs the complete context dictionary for rendering meeting/index.html,
+    ensuring 100% backward compatibility for existing keys while hydrating
+    real-time user settings, storage metrics, and latest meeting metadata.
+    """
+    max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
+    max_upload_size_mb = max(1, max_upload_size // (1024 * 1024))
+
+    is_authenticated = bool(
+        hasattr(request, "user") and request.user and request.user.is_authenticated
+    )
+
+    # A. AI Provider Information
+    provider_names = {
+        "gemini": "Google Gemini",
+        "claude": "Anthropic Claude",
+        "openai": "OpenAI",
+    }
+
+    user_settings = SettingsService.get_settings(request.user) if is_authenticated else None
+
+    if user_settings:
+        active_provider = user_settings.get("provider", "gemini")
+        active_model = user_settings.get("model_name", "")
+        is_provider_configured = bool(user_settings.get("api_key"))
+        active_provider_name = provider_names.get(
+            active_provider,
+            active_provider.title() if active_provider else "Not Configured"
+        )
+    else:
+        active_provider = ""
+        active_provider_name = "Not Configured"
+        active_model = "—"
+        is_provider_configured = False
+
+    # B. Storage Metrics
+    if is_authenticated:
+        storage_agg = Meeting.objects.filter(user=request.user).aggregate(total=Sum("file_size"))
+        user_storage_bytes = storage_agg["total"] or 0
+    else:
+        user_storage_bytes = 0
+
+    if user_storage_bytes >= 1024 * 1024 * 1024:
+        user_storage_display = f"{user_storage_bytes / (1024 ** 3):.2f} GB"
+    elif user_storage_bytes >= 1024 * 1024:
+        user_storage_display = f"{user_storage_bytes / (1024 ** 2):.2f} MB"
+    elif user_storage_bytes > 0:
+        user_storage_display = f"{round(user_storage_bytes / 1024, 1)} KB"
+    else:
+        user_storage_display = "0 MB"
+
+    storage_quota_display = "10 GB"
+    storage_quota_bytes = 10 * 1024 * 1024 * 1024
+    raw_pct = round((user_storage_bytes / storage_quota_bytes) * 100, 1)
+    capped_pct = min(100.0, max(0.0, raw_pct))
+    storage_percentage = int(capped_pct) if capped_pct == int(capped_pct) else capped_pct
+
+    # C. Latest Meeting Information
+    latest_meeting = None
+    if is_authenticated:
+        latest_meeting = Meeting.objects.filter(user=request.user).order_by("-created_at", "-id").first()
+
+    if latest_meeting:
+        latest_meeting_date = latest_meeting.created_at.strftime("%d %b %Y")
+        file_candidate = (
+            latest_meeting.original_file.name
+            if latest_meeting.original_file
+            else latest_meeting.meeting_name
+        )
+        _, ext = os.path.splitext(file_candidate or "")
+        clean_ext = ext.replace(".", "").upper()
+        latest_meeting_format = clean_ext if clean_ext else "MP4"
+        latest_meeting_duration = latest_meeting.formatted_duration or "00 sec"
+
+        if report:
+            latest_meeting_status = "COMPLETED"
+            latest_meeting_status_class = "text-success"
+        elif latest_meeting.status == "completed":
+            latest_meeting_status = "COMPLETED"
+            latest_meeting_status_class = "text-success"
+        elif latest_meeting.status == "failed":
+            latest_meeting_status = "FAILED"
+            latest_meeting_status_class = "text-danger"
+        elif latest_meeting.status == "processing":
+            latest_meeting_status = "RUNNING"
+            latest_meeting_status_class = "text-primary"
+        else:
+            latest_meeting_status = latest_meeting.status.upper()
+            latest_meeting_status_class = "text-muted"
+    else:
+        latest_meeting_date = "No recent meetings"
+        latest_meeting_format = "—"
+        latest_meeting_duration = "—"
+        latest_meeting_status = "COMPLETED" if report else "READY"
+        latest_meeting_status_class = "text-success" if report else "text-muted"
+
+    return {
+        # Preserved backward-compatible keys
+        "status": status,
+        "transcript": transcript,
+        "report": report,
+        "max_upload_size": max_upload_size,
+        "max_upload_size_mb": max_upload_size_mb,
+
+        # AI Provider context (never expose decrypted API key)
+        "active_provider": active_provider,
+        "active_provider_name": active_provider_name,
+        "active_model": active_model,
+        "is_provider_configured": is_provider_configured,
+
+        # Storage metrics
+        "user_storage_bytes": user_storage_bytes,
+        "user_storage_display": user_storage_display,
+        "storage_quota_display": storage_quota_display,
+        "storage_percentage": storage_percentage,
+
+        # Latest meeting metadata
+        "latest_meeting": latest_meeting,
+        "latest_meeting_date": latest_meeting_date,
+        "latest_meeting_format": latest_meeting_format,
+        "latest_meeting_duration": latest_meeting_duration,
+        "latest_meeting_status": latest_meeting_status,
+        "latest_meeting_status_class": latest_meeting_status_class,
+    }
+
+
 @login_required(login_url="login")
 def home(request):
     status = "Waiting for meeting upload..."
@@ -46,7 +174,7 @@ def home(request):
             user_settings = SettingsService.get_settings(request.user)
             if not user_settings or not user_settings.get("api_key"):
                 status = "⚠️ Please configure your AI Provider and API Key in Settings before analyzing meetings."
-                return render(request, "meeting/index.html", {"status": status})
+                return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
             allowed_extensions = [
                 ".mp4", 
@@ -61,20 +189,20 @@ def home(request):
 
             if not any(file_name.endswith(ext) for ext in allowed_extensions):
                 status = "❌ Invalid file. Please upload only MP4, MOV, AVI, MKV, MP3 or WAV."
-                return render(request,"meeting/index.html",{"status": status})
+                return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
             max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
             if uploaded_file.size > max_upload_size:
                 limit_mb = max_upload_size // (1024 * 1024)
                 actual_mb = round(uploaded_file.size / (1024 * 1024), 1)
                 status = f"⚠️ File size ({actual_mb} MB) exceeds the demo limit of {limit_mb} MB. Please upload a shorter meeting clip."
-                return render(request, "meeting/index.html", {"status": status})
+                return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
             # Check AI Provider configuration and run pre-flight health check before saving to disk & running FFmpeg
             provider = ProviderFactory.get_provider(request.user)
             if not provider:
                 status = "⚠️ Please configure your AI Provider and API Key in Settings before analyzing meetings."
-                return render(request, "meeting/index.html", {"status": status})
+                return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
             preflight = ModelValidationService.preflight_check(provider)
             if not preflight.is_valid:
@@ -87,7 +215,7 @@ def home(request):
                 }
                 prefix = prefix_map.get(preflight.status, "❌ AI Configuration Error")
                 status = f"{prefix}: {preflight.message}"
-                return render(request, "meeting/index.html", {"status": status})
+                return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
             fs = FileSystemStorage()
 
@@ -119,7 +247,7 @@ def home(request):
 
                 if not transcript:
                     status = "❌ Failed to generate transcript. Please check your API key and model settings."
-                    return render(request, "meeting/index.html", {"status": status})
+                    return render(request, "meeting/index.html", _get_home_context(request, status=status))
 
                 transcript_path = TranscriptService.save_transcript(
                     transcript,
@@ -159,11 +287,7 @@ def home(request):
                 return render(
                     request,
                     "meeting/index.html",
-                    {
-                        "status": status,
-                        "transcript": transcript,
-                        "report": report,
-                    }
+                    _get_home_context(request, status=status, transcript=transcript, report=report)
                 )
 
             except TimeoutError:
@@ -177,11 +301,7 @@ def home(request):
                 return render(
                     request,
                     "meeting/index.html",
-                    {
-                        "status": status,
-                        "transcript": transcript,
-                        "report": report,
-                    }
+                    _get_home_context(request, status=status, transcript=transcript, report=report)
                 )
 
             except Exception as e:
@@ -195,11 +315,7 @@ def home(request):
                 return render(
                     request,
                     "meeting/index.html",
-                    {
-                        "status": status,
-                        "transcript": transcript,
-                        "report": report,
-                    }
+                    _get_home_context(request, status=status, transcript=transcript, report=report)
                 )
 
             status = f"File Saved Successfully : {filename}"
@@ -208,19 +324,10 @@ def home(request):
 
             status = "Please select a meeting file."
 
-    max_upload_size = getattr(django_settings, "MAX_UPLOAD_SIZE", 52428800)
-    max_upload_size_mb = max(1, max_upload_size // (1024 * 1024))
-
     return render(
         request,
         "meeting/index.html",
-        {
-            "status": status,
-            "transcript": transcript,
-            "report": report,
-            "max_upload_size": max_upload_size,
-            "max_upload_size_mb": max_upload_size_mb,
-        }
+        _get_home_context(request, status=status, transcript=transcript, report=report)
     ) 
 
 @login_required(login_url="login")

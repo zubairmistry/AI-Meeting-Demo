@@ -368,6 +368,69 @@
         }
     }
 
+    /**
+     * Phase 2.1 — Step 3: Frontend JavaScript Live Sidebar Synchronization.
+     * Synchronizes Right Sidebar Meeting Information (Status, Duration, Last Used)
+     * using live polling data from GET /meeting/status/<meeting_id>/.
+     * Tolerates null/missing fields, missing DOM nodes, and unknown statuses defensively.
+     */
+    function syncSidebarMeetingInfo(data) {
+        if (!data || typeof data !== "object") return;
+
+        try {
+            // 1. Synchronize Processing Status (#infoProcessingStatus)
+            const infoStatus = document.getElementById("infoProcessingStatus");
+            if (infoStatus && data.status) {
+                const s = String(data.status).toLowerCase().trim();
+                if (s === "completed") {
+                    infoStatus.textContent = "COMPLETED";
+                    infoStatus.className = "info-item-value text-success fw-bold";
+                } else if (s === "failed") {
+                    infoStatus.textContent = "FAILED";
+                    infoStatus.className = "info-item-value text-danger fw-bold";
+                } else if (s === "processing" || s === "running" || s === "queued") {
+                    infoStatus.textContent = "RUNNING";
+                    infoStatus.className = "info-item-value text-primary fw-bold";
+                } else if (s === "ready") {
+                    infoStatus.textContent = "READY";
+                    infoStatus.className = "info-item-value text-muted";
+                } else {
+                    infoStatus.textContent = s.toUpperCase();
+                    infoStatus.className = "info-item-value text-primary fw-bold";
+                }
+            }
+
+            // 2. Synchronize Runtime Duration (#infoRuntimeDuration)
+            if (data.duration !== undefined && data.duration !== null && data.duration !== "") {
+                const numDuration = Number(data.duration);
+                if (!isNaN(numDuration) && numDuration >= 0) {
+                    const durationEl = document.getElementById("infoRuntimeDuration");
+                    if (durationEl) {
+                        durationEl.textContent = formatDurationSecs(numDuration);
+                    }
+                }
+            }
+
+            // 3. Synchronize Last Used Date (#infoLastUsed) on completion
+            if (data.status === "completed") {
+                const lastUsedEl = document.getElementById("infoLastUsed");
+                if (lastUsedEl) {
+                    const currentVal = (lastUsedEl.textContent || "").trim();
+                    if (!currentVal || currentVal === "—" || currentVal === "No recent meetings") {
+                        lastUsedEl.textContent = getFormattedDate();
+                    }
+                }
+            }
+
+            // Note on Storage Display (Requirement 4):
+            // The status endpoint (/meeting/status/<id>/) returns per-meeting data,
+            // but does not expose user-aggregate storage metrics. To avoid ungrounded
+            // client-side calculations, the server-rendered storage metrics are preserved.
+        } catch (syncErr) {
+            console.warn("Sidebar synchronization non-fatal error:", syncErr);
+        }
+    }
+
     async function pollMeetingStatus(meetingId) {
         if (!isProcessing || activeMeetingId !== meetingId) return;
 
@@ -420,11 +483,8 @@
                         ensureReportSection(data.ai_report);
                     }
 
-                    // 6. Update Meeting Info in Right Sidebar
-                    if (data.duration && data.duration > 0) {
-                        const durationEl = document.getElementById("infoRuntimeDuration");
-                        if (durationEl) durationEl.textContent = formatDurationSecs(data.duration);
-                    }
+                    // 6. Synchronize Right Sidebar Meeting Information (Phase 2.1 Step 3)
+                    syncSidebarMeetingInfo(data);
 
                     // 7. Check Terminal State
                     if (status === "completed") {
@@ -662,6 +722,7 @@
 
     // Expose for external page triggers
     window.retryMeetingAnalysis = retryMeeting;
+    window.syncSidebarMeetingInfo = syncSidebarMeetingInfo;
 
     /* ==========================================================================
        4. WORKSPACE FILE SELECTION, DRAG & DROP AND ASYNC SUBMISSION
