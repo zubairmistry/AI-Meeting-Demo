@@ -18,7 +18,7 @@ echo.
 if %SETUP_STATUS% equ 0 (
     echo [OK] Setup completed successfully.
 ) else (
-    echo [ERROR] Setup encountered an issue (Exit Code: %SETUP_STATUS%).
+    echo [ERROR] Setup encountered an issue [Exit Code: %SETUP_STATUS%].
     echo Please review the action items displayed above or check setup_log.txt.
 )
 echo.

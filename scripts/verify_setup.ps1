@@ -123,55 +123,87 @@ if ($missingProjectFiles.Count -gt 0) {
 # ----------------------------------------------------------------------
 Write-Host "[2/10] Checking Python Runtime..." -ForegroundColor Gray
 
-$detectedPython = $null
-$pyVersionStr = ""
-$pyArch = ""
-$pyMajor = 0
-$pyMinor = 0
+$VenvDir = Join-Path $ProjectRoot ".venv"
+$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+
+$projectVerStr = $null
+$projectMajor = 0
+$projectMinor = 0
+$projectComp = $false
+
+if (Test-Path $VenvPython) {
+    try {
+        $pOut = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $pOut) {
+            $projectVerStr = $pOut.Trim()
+            $pParts = $projectVerStr.Split(".")
+            if ($pParts.Length -ge 2) {
+                $projectMajor = [int]$pParts[0]
+                $projectMinor = [int]$pParts[1]
+                $projectComp = ($projectMajor -eq 3 -and ($projectMinor -ge 10 -and $projectMinor -le 12))
+            }
+        }
+    } catch {}
+}
+
+$globalVerStr = $null
+$globalArch = ""
+$globalMajor = 0
+$globalMinor = 0
 
 try {
     $verOut = & python -c "import sys, platform; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}|{platform.architecture()[0]}')" 2>$null
     if ($LASTEXITCODE -eq 0 -and $verOut) {
         $parts = $verOut.Trim().Split("|")
-        $pyVersionStr = $parts[0]
-        if ($parts.Length -gt 1) { $pyArch = $parts[1] }
-        $detectedPython = "python"
+        $globalVerStr = $parts[0]
+        if ($parts.Length -gt 1) { $globalArch = $parts[1] }
     }
 } catch {}
 
-if (-not $detectedPython) {
+if (-not $globalVerStr) {
     try {
         $verOut = & py -3 -c "import sys, platform; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}|{platform.architecture()[0]}')" 2>$null
         if ($LASTEXITCODE -eq 0 -and $verOut) {
             $parts = $verOut.Trim().Split("|")
-            $pyVersionStr = $parts[0]
-            if ($parts.Length -gt 1) { $pyArch = $parts[1] }
-            $detectedPython = "py -3"
+            $globalVerStr = $parts[0]
+            if ($parts.Length -gt 1) { $globalArch = $parts[1] }
         }
     } catch {}
 }
 
-if (-not $detectedPython) {
+if ($globalVerStr) {
+    $gParts = $globalVerStr.Split(".")
+    if ($gParts.Length -ge 2) {
+        $globalMajor = [int]$gParts[0]
+        $globalMinor = [int]$gParts[1]
+    }
+}
+
+if ($projectComp) {
+    # Project virtual environment is ready with a certified Python runtime (3.10-3.12)
+    if ($globalVerStr -and ($globalMajor -ne 3 -or $globalMinor -lt 10 -or $globalMinor -gt 12)) {
+        Record-Check "Python Runtime" "PASS" "Project Python $projectVerStr (Global: $globalVerStr)"
+        Write-Host " [PASS] Python Runtime         : Project Python $projectVerStr (Global: $globalVerStr)" -ForegroundColor Green
+    } else {
+        $displayStr = if ($globalVerStr -and $globalVerStr -ne $projectVerStr) { "Project Python $projectVerStr (Global: $globalVerStr)" } else { "Python $projectVerStr" }
+        Record-Check "Python Runtime" "PASS" $displayStr
+        Write-Host " [PASS] Python Runtime         : $displayStr" -ForegroundColor Green
+    }
+} elseif ($globalVerStr) {
+    if ($globalMajor -eq 3 -and ($globalMinor -ge 10 -and $globalMinor -le 12)) {
+        $archLabel = if ($globalArch) { " ($globalArch)" } else { "" }
+        Record-Check "Python Runtime" "PASS" "Python $globalVerStr$archLabel"
+        Write-Host " [PASS] Python Runtime         : Python $globalVerStr$archLabel" -ForegroundColor Green
+    } elseif ($globalMajor -eq 3 -and $globalMinor -gt 12) {
+        Show-Warn "Python Runtime" "Detected global Python ($globalVerStr) is newer than the standard tested range (Python 3.10-3.12)." "Run 'Setup Application.bat' to automatically configure a compatible runtime." "SETUP-PYTHON-003"
+        Write-Host " [WARN] Python Runtime         : Global Python $globalVerStr newer than tested range" -ForegroundColor Yellow
+    } else {
+        Show-Fail "Python Runtime" "Detected Python ($globalVerStr) is older than the required Python 3.10." "Install Python 3.11 from https://www.python.org/downloads/ and enable 'Add Python to PATH'." "SETUP-PYTHON-002"
+        Write-Host " [FAIL] Python Runtime         : Python $globalVerStr is outdated" -ForegroundColor Red
+    }
+} else {
     Show-Fail "Python Runtime" "Python 3.10-3.12 was not detected on your system PATH." "Install Python 3.11 from https://www.python.org/downloads/ and enable 'Add Python to PATH'." "SETUP-PYTHON-001"
     Write-Host " [FAIL] Python Runtime         : Python 3.10-3.12 not found" -ForegroundColor Red
-} else {
-    $vParts = $pyVersionStr.Split(".")
-    if ($vParts.Length -ge 2) {
-        $pyMajor = [int]$vParts[0]
-        $pyMinor = [int]$vParts[1]
-    }
-
-    if ($pyMajor -lt 3 -or ($pyMajor -eq 3 -and $pyMinor -lt 10)) {
-        Show-Fail "Python Runtime" "Detected Python ($pyVersionStr) is older than the required Python 3.10." "Install Python 3.11 from https://www.python.org/downloads/ and enable 'Add Python to PATH'." "SETUP-PYTHON-002"
-        Write-Host " [FAIL] Python Runtime         : Python $pyVersionStr ($pyArch) is outdated" -ForegroundColor Red
-    } elseif ($pyMajor -eq 3 -and $pyMinor -gt 12) {
-        Show-Warn "Python Runtime" "Detected Python ($pyVersionStr) is newer than the standard tested range (Python 3.10-3.12)." "Proceed with caution or use Python 3.11." "SETUP-PYTHON-003"
-        Write-Host " [WARN] Python Runtime         : Python $pyVersionStr ($pyArch) newer than tested range" -ForegroundColor Yellow
-    } else {
-        $archLabel = if ($pyArch) { " ($pyArch)" } else { "" }
-        Record-Check "Python Runtime" "PASS" "Python $pyVersionStr$archLabel"
-        Write-Host " [PASS] Python Runtime         : Python $pyVersionStr$archLabel" -ForegroundColor Green
-    }
 }
 
 # ----------------------------------------------------------------------
@@ -179,25 +211,36 @@ if (-not $detectedPython) {
 # ----------------------------------------------------------------------
 Write-Host "[3/10] Checking Virtual Environment..." -ForegroundColor Gray
 
-$VenvDir = Join-Path $ProjectRoot ".venv"
-$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $venvValid = $false
 
 if (Test-Path $VenvPython) {
     try {
-        $venvCheck = & $VenvPython -c "import sys; print(sys.prefix)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $venvCheck) {
-            $venvValid = $true
-        }
-    } catch {}
-}
+        $vOut = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $vOut) {
+            $venvVerStr = $vOut.Trim()
+            $vParts = $venvVerStr.Split(".")
+            $vMaj = [int]$vParts[0]
+            $vMin = [int]$vParts[1]
 
-if ($venvValid) {
-    Record-Check "Virtual Environment" "PASS" ".venv is valid"
-    Write-Host " [PASS] Virtual Environment    : .venv is valid" -ForegroundColor Green
+            if ($vMaj -eq 3 -and ($vMin -ge 10 -and $vMin -le 12)) {
+                $venvValid = $true
+                Record-Check "Virtual Environment" "PASS" ".venv is valid (Python $venvVerStr)"
+                Write-Host " [PASS] Virtual Environment    : .venv is valid (Python $venvVerStr)" -ForegroundColor Green
+            } else {
+                Show-Fail "Virtual Environment" "The existing .venv was created with unsupported Python $venvVerStr (requires Python 3.10-3.12)." "Run 'Setup Application.bat' to automatically recreate .venv with compatible Python 3.11." "SETUP-VENV-002"
+                Write-Host " [FAIL] Virtual Environment    : Built with unsupported Python $venvVerStr" -ForegroundColor Red
+            }
+        } else {
+            Show-Fail "Virtual Environment" "The application's Python virtual environment is broken or incomplete." "Run 'Setup Application.bat' again." "SETUP-VENV-001"
+            Write-Host " [FAIL] Virtual Environment    : Broken interpreter at .venv" -ForegroundColor Red
+        }
+    } catch {
+        Show-Fail "Virtual Environment" "The application's Python virtual environment is broken or incomplete." "Run 'Setup Application.bat' again." "SETUP-VENV-001"
+        Write-Host " [FAIL] Virtual Environment    : Broken interpreter at .venv" -ForegroundColor Red
+    }
 } else {
-    Show-Fail "Virtual Environment" "The application's Python virtual environment is missing or invalid." "Run 'Setup Application.bat' again." "SETUP-VENV-001"
-    Write-Host " [FAIL] Virtual Environment    : Missing or broken at .venv" -ForegroundColor Red
+    Show-Fail "Virtual Environment" "The application's Python virtual environment is missing." "Run 'Setup Application.bat' to create .venv." "SETUP-VENV-001"
+    Write-Host " [FAIL] Virtual Environment    : Missing at .venv" -ForegroundColor Red
 }
 
 # ----------------------------------------------------------------------

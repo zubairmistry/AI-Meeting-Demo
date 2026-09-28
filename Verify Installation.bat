@@ -18,7 +18,7 @@ echo.
 if %VERIFY_STATUS% equ 0 (
     echo [OK] Verification finished successfully.
 ) else (
-    echo [ERROR] Verification identified one or more issues (Exit Code: %VERIFY_STATUS%).
+    echo [ERROR] Verification identified one or more issues [Exit Code: %VERIFY_STATUS%].
     echo Please review the action items displayed above or check verify_report.txt.
 )
 echo.

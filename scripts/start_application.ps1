@@ -38,6 +38,26 @@ function Show-FailCard {
     Write-Host ""
 }
 
+function Show-WarnCard {
+    param(
+        [string]$Title,
+        [string]$Problem,
+        [string]$Action,
+        [string]$RefCode
+    )
+    Write-Host ""
+    Write-Host " [WARN] $Title" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host " Note:" -ForegroundColor Yellow
+    Write-Host " $Problem" -ForegroundColor White
+    Write-Host ""
+    Write-Host " Recommended Action:" -ForegroundColor Yellow
+    Write-Host " $Action" -ForegroundColor White
+    Write-Host ""
+    Write-Host " Reference Code: $RefCode" -ForegroundColor Cyan
+    Write-Host ""
+}
+
 # ----------------------------------------------------------------------
 # STEP 1 — PRE-FLIGHT CHECKS
 # ----------------------------------------------------------------------
@@ -49,11 +69,46 @@ $ManagePy = Join-Path $ProjectRoot "manage.py"
 $DbFile = Join-Path $ProjectRoot "db.sqlite3"
 $EnvFile = Join-Path $ProjectRoot ".env"
 
+# 1. Virtual Environment existence and version check
 if (-not (Test-Path $VenvPython)) {
     Show-FailCard "Application Virtual Environment" "The Python virtual environment (.venv) was not found." "Run 'Setup Application.bat' and then 'Verify Installation.bat'." "START-VENV-001"
     exit 1
 }
 
+$venvVerStr = $null
+try {
+    $vOut = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $vOut) {
+        $venvVerStr = $vOut.Trim()
+        $vParts = $venvVerStr.Split(".")
+        $vMaj = [int]$vParts[0]
+        $vMin = [int]$vParts[1]
+        if ($vMaj -ne 3 -or $vMin -lt 10 -or $vMin -gt 12) {
+            Show-FailCard "Virtual Environment Compatibility" "The virtual environment was built with unsupported Python $venvVerStr (requires Python 3.10-3.12)." "Run 'Setup Application.bat' to automatically recreate .venv with compatible Python 3.11." "START-VENV-002"
+            exit 1
+        }
+    } else {
+        Show-FailCard "Application Virtual Environment" "The Python virtual environment (.venv) interpreter is broken or incomplete." "Run 'Setup Application.bat' to recreate .venv." "START-VENV-001"
+        exit 1
+    }
+} catch {
+    Show-FailCard "Application Virtual Environment" "Failed to execute Python inside .venv." "Run 'Setup Application.bat' to recreate .venv." "START-VENV-001"
+    exit 1
+}
+
+# 2. Django application dependencies check
+try {
+    $null = & $VenvPython -c "import django, google.genai, cryptography" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Show-FailCard "Application Dependencies" "Required core packages (Django, Google GenAI, Cryptography) are missing in .venv." "Run 'Setup Application.bat' to install dependencies." "START-DEP-001"
+        exit 1
+    }
+} catch {
+    Show-FailCard "Application Dependencies" "Failed to inspect packages in .venv." "Run 'Setup Application.bat' to install dependencies." "START-DEP-001"
+    exit 1
+}
+
+# 3. Application files check
 if (-not (Test-Path $ManagePy)) {
     Show-FailCard "Application Files" "manage.py was not found in the project root." "Re-extract the application package or contact IT support." "START-FILE-001"
     exit 1
@@ -67,6 +122,32 @@ if (-not (Test-Path $EnvFile)) {
 if (-not (Test-Path $DbFile)) {
     Show-FailCard "Database Engine" "db.sqlite3 database was not found." "Run 'Setup Application.bat' to initialize the local SQLite database." "START-DB-001"
     exit 1
+}
+
+# 4. Storage directories verification / auto-creation
+$requiredDirs = @("media", "media\meetings\original", "media\meetings\audio", "media\meetings\transcripts", "staticfiles", "bin")
+foreach ($dir in $requiredDirs) {
+    $dirPath = Join-Path $ProjectRoot $dir
+    if (-not (Test-Path $dirPath)) {
+        New-Item -ItemType Directory -Path $dirPath -Force | Out-Null
+    }
+}
+
+# 5. FFmpeg availability check (advisory warning)
+$ffmpegAvailable = $false
+$localFfmpeg = Join-Path $ProjectRoot "bin\ffmpeg.exe"
+if (Test-Path $localFfmpeg) {
+    $ffmpegAvailable = $true
+} elseif (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+    $ffmpegAvailable = $true
+} elseif ($env:FFMPEG_PATH -and (Test-Path $env:FFMPEG_PATH)) {
+    $ffmpegAvailable = $true
+} elseif (Test-Path "C:\ffmpeg-9.0.1-essentials_build\bin\ffmpeg.exe") {
+    $ffmpegAvailable = $true
+}
+
+if (-not $ffmpegAvailable) {
+    Show-WarnCard "FFmpeg Audio Engine" "FFmpeg audio extraction binary was not detected. Audio extraction for meeting video files will fail." "Run 'Setup Application.bat' to download FFmpeg automatically, or place 'ffmpeg.exe' into 'bin\ffmpeg.exe'." "START-FFMPEG-001"
 }
 
 # ----------------------------------------------------------------------

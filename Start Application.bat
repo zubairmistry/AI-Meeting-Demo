@@ -14,7 +14,7 @@ set "APP_STATUS=%ERRORLEVEL%"
 
 if %APP_STATUS% neq 0 (
     echo.
-    echo [ERROR] Application could not be started (Exit Code: %APP_STATUS%).
+    echo [ERROR] Application could not be started [Exit Code: %APP_STATUS%].
     echo Please run "Verify Installation.bat" or review the diagnostic details above.
     echo.
     echo Press any key to close this window...
